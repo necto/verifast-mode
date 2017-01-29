@@ -348,6 +348,10 @@ buffer."
                         (verifast-rewind-to-beginning-of-current-level-expr)
                         (+ (current-column) verifast-indent-offset))))))
              (cond
+              ;; Functions must be at the very left.
+              ((and (= level 0)
+                    (verifast-looking-at-defun)) 0)
+
               ;; Indent inside a non-raw string only if the the previous line
               ;; ends with a backslash that is inside the same string
               ((nth 3 (syntax-ppss))
@@ -1199,6 +1203,12 @@ which calls this, does that afterwards."
   (interactive "p")
   (re-search-backward verifast-top-item-beg-re
                       nil 'move (or arg 1)))
+
+(defun verifast-looking-at-defun ()
+  (save-excursion
+    (beginning-of-line)
+    (and (looking-at-p verifast-top-item-beg-re)
+         (not (verifast-in-str-or-cmnt)))))
 
 (defun verifast-end-of-defun ()
   "Move forward to the next end of defun.
