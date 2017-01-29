@@ -186,17 +186,6 @@ function or trait.  When nil, where will be aligned with fn or trait."
   :safe #'booleanp
   :group 'verifast-mode)
 
-(defcustom verifast-format-on-save nil
-  "Format future verifast buffers before saving using verifastfmt."
-  :type 'boolean
-  :safe #'booleanp
-  :group 'verifast-mode)
-
-(defcustom verifast-verifastfmt-bin "verifastfmt"
-  "Path to verifastfmt executable."
-  :type 'string
-  :group 'verifast-mode)
-
 (defface verifast-unsafe-face
   '((t :inherit font-lock-warning-face))
   "Face for the `unsafe' keyword."
@@ -1271,19 +1260,6 @@ This is written mainly to be used as `end-of-defun-function' for Verifast."
     ;; There is no opening brace, so consider the whole buffer to be one "defun"
     (goto-char (point-max))))
 
-;; Formatting using verifastfmt
-(defun verifast--format-call (buf)
-  "Format BUF using verifastfmt."
-  (with-current-buffer (get-buffer-create "*verifastfmt*")
-    (erase-buffer)
-    (insert-buffer-substring buf)
-    (if (zerop (call-process-region (point-min) (point-max) verifast-verifastfmt-bin t t nil))
-        (progn
-          (if (not (string= (buffer-string) (with-current-buffer buf (buffer-string))))
-              (copy-to-buffer buf (point-min) (point-max)))
-          (kill-buffer))
-      (error "Verifastfmt failed, see *verifastfmt* buffer for details"))))
-
 (defconst verifast--format-word "\\b\\(else\\|enum\\|fn\\|for\\|if\\|let\\|loop\\|match\\|struct\\|unsafe\\|while\\)\\b")
 (defconst verifast--format-line "\\([\n]\\)")
 
@@ -1366,63 +1342,6 @@ This is written mainly to be used as `end-of-defun-function' for Verifast."
             (forward-char columns)))
         (min (point) max-pos)))))
 
-(defun verifast-format-buffer ()
-  "Format the current buffer using verifastfmt."
-  (interactive)
-  (unless (executable-find verifast-verifastfmt-bin)
-    (error "Could not locate executable \"%s\"" verifast-verifastfmt-bin))
-
-  (let* ((current (current-buffer))
-         (base (or (buffer-base-buffer current) current))
-         buffer-loc
-         window-loc)
-    (dolist (buffer (buffer-list))
-      (when (or (eq buffer base)
-                (eq (buffer-base-buffer buffer) base))
-        (push (list buffer
-                    (verifast--format-get-loc buffer nil))
-              buffer-loc)))
-    (dolist (window (window-list))
-      (let ((buffer (window-buffer window)))
-        (when (or (eq buffer base)
-                  (eq (buffer-base-buffer buffer) base))
-          (let ((start (window-start window))
-                (point (window-point window)))
-            (push (list window
-                        (verifast--format-get-loc buffer start)
-                        (verifast--format-get-loc buffer point))
-                  window-loc)))))
-    (verifast--format-call (current-buffer))
-    (dolist (loc buffer-loc)
-      (let* ((buffer (pop loc))
-             (pos (verifast--format-get-pos buffer (pop loc))))
-        (with-current-buffer buffer
-          (goto-char pos))))
-    (dolist (loc window-loc)
-      (let* ((window (pop loc))
-             (buffer (window-buffer window))
-             (start (verifast--format-get-pos buffer (pop loc)))
-             (pos (verifast--format-get-pos buffer (pop loc))))
-        (set-window-start window start)
-        (set-window-point window pos))))
-
-  ;; Issue #127: Running this on a buffer acts like a revert, and could cause
-  ;; the fontification to get out of sync.  Call the same hook to ensure it is
-  ;; restored.
-  (verifast--after-revert-hook)
-
-  (message "Formatted buffer with verifastfmt."))
-
-(defun verifast-enable-format-on-save ()
-  "Enable formatting using verifastfmt when saving buffer."
-  (interactive)
-  (setq-local verifast-format-on-save t))
-
-(defun verifast-disable-format-on-save ()
-  "Disable formatting using verifastfmt when saving buffer."
-  (interactive)
-  (setq-local verifast-format-on-save nil))
-
 (defvar verifast-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-f") 'verifast-format-buffer)
@@ -1499,9 +1418,6 @@ This is written mainly to be used as `end-of-defun-function' for Verifast."
     (if (fboundp 'font-lock-ensure)
         (font-lock-ensure)
       (font-lock-fontify-region (point-min) (point-max)))))
-
-(defun verifast--before-save-hook ()
-  (when verifast-format-on-save (verifast-format-buffer)))
 
 ;; Issue #6887: Rather than inheriting the 'gnu compilation error
 ;; regexp (which is broken on a few edge cases), add our own 'verifast
