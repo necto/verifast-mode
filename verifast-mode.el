@@ -32,7 +32,6 @@
 (defconst verifast-re-lc-ident "[[:lower:][:multibyte:]_][[:word:][:multibyte:]_[:digit:]]*")
 (defconst verifast-re-uc-ident "[[:upper:]][[:word:][:multibyte:]_[:digit:]]*")
 (defconst verifast-re-vis "pub")
-(defconst verifast-re-unsafe "unsafe")
 (defconst verifast-re-extern "extern")
 
 (defconst verifast-re-non-standard-string
@@ -184,11 +183,6 @@ function or trait.  When nil, where will be aligned with fn or trait."
   appropriate."
   :type 'boolean
   :safe #'booleanp
-  :group 'verifast-mode)
-
-(defface verifast-unsafe-face
-  '((t :inherit font-lock-warning-face))
-  "Face for the `unsafe' keyword."
   :group 'verifast-mode)
 
 (defun verifast-paren-level () (nth 0 (syntax-ppss)))
@@ -556,7 +550,6 @@ buffer."
 (defun verifast-re-item-def-imenu (itype)
   (concat "^[[:space:]]*"
           (verifast-re-shy (concat (verifast-re-word verifast-re-vis) "[[:space:]]+")) "?"
-          (verifast-re-shy (concat (verifast-re-word verifast-re-unsafe) "[[:space:]]+")) "?"
           (verifast-re-shy (concat (verifast-re-word verifast-re-extern) "[[:space:]]+"
                                (verifast-re-shy "\"[^\"]+\"[[:space:]]+") "?")) "?"
           (verifast-re-item-def itype)))
@@ -589,9 +582,6 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
 
      ;; Special types
      (,(regexp-opt verifast-special-types 'symbols) . font-lock-type-face)
-
-     ;; The unsafe keyword
-     ("\\_<unsafe\\_>" . 'verifast-unsafe-face)
 
      ;; Attributes like `#[bar(baz)]` or `#![bar(baz)]` or `#[bar = "baz"]`
      (,(verifast-re-grab (concat "#\\!?\\[" verifast-re-ident "[^]]*\\]"))
@@ -1260,7 +1250,7 @@ This is written mainly to be used as `end-of-defun-function' for Verifast."
     ;; There is no opening brace, so consider the whole buffer to be one "defun"
     (goto-char (point-max))))
 
-(defconst verifast--format-word "\\b\\(else\\|enum\\|fn\\|for\\|if\\|let\\|loop\\|match\\|struct\\|unsafe\\|while\\)\\b")
+(defconst verifast--format-word "\\b\\(else\\|enum\\|fn\\|for\\|if\\|let\\|loop\\|match\\|struct\\|while\\)\\b")
 (defconst verifast--format-line "\\([\n]\\)")
 
 ;; Counts number of matches of regex beginning up to max-beginning,
