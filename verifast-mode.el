@@ -1,8 +1,8 @@
-;;; rust-mode.el --- A major emacs mode for editing Rust source code -*-lexical-binding: t-*-
+;;; verifast-mode.el --- A major emacs mode for editing Verifast source code -*-lexical-binding: t-*-
 
-;; Version: 0.3.0
-;; Author: Mozilla
-;; Url: https://github.com/rust-lang/rust-mode
+;; Version: 0.0.1
+;; Author: Necto
+;; Url: https://github.com/necto/verifast-mode
 ;; Keywords: languages
 ;; Package-Requires: ((emacs "24.0"))
 
@@ -28,14 +28,14 @@
       "Set variable VAR to value VAL in current buffer."
       (list 'set (list 'make-local-variable (list 'quote var)) val))))
 
-(defconst rust-re-ident "[[:word:][:multibyte:]_][[:word:][:multibyte:]_[:digit:]]*")
-(defconst rust-re-lc-ident "[[:lower:][:multibyte:]_][[:word:][:multibyte:]_[:digit:]]*")
-(defconst rust-re-uc-ident "[[:upper:]][[:word:][:multibyte:]_[:digit:]]*")
-(defconst rust-re-vis "pub")
-(defconst rust-re-unsafe "unsafe")
-(defconst rust-re-extern "extern")
+(defconst verifast-re-ident "[[:word:][:multibyte:]_][[:word:][:multibyte:]_[:digit:]]*")
+(defconst verifast-re-lc-ident "[[:lower:][:multibyte:]_][[:word:][:multibyte:]_[:digit:]]*")
+(defconst verifast-re-uc-ident "[[:upper:]][[:word:][:multibyte:]_[:digit:]]*")
+(defconst verifast-re-vis "pub")
+(defconst verifast-re-unsafe "unsafe")
+(defconst verifast-re-extern "extern")
 
-(defconst rust-re-non-standard-string
+(defconst verifast-re-non-standard-string
   (rx
    (or
     ;; Raw string: if it matches, it ends up with the starting character
@@ -96,13 +96,13 @@
     )
    ))
 
-(defun rust-looking-back-str (str)
+(defun verifast-looking-back-str (str)
   "Like `looking-back' but for fixed strings rather than regexps (so that it's not so slow)"
   (let ((len (length str)))
     (and (> (point) len)
          (equal str (buffer-substring-no-properties (- (point) len) (point))))))
 
-(defun rust-looking-back-symbols (SYMS)
+(defun verifast-looking-back-symbols (SYMS)
   "Return non-nil if the point is just after a complete symbol that is a member of the list of strings SYMS"
   (save-excursion
     (let* ((pt-orig (point))
@@ -112,17 +112,17 @@
        (= end-of-symbol pt-orig)
        (member (buffer-substring-no-properties beg-of-symbol pt-orig) SYMS)))))
 
-(defun rust-looking-back-ident ()
-  "Non-nil if we are looking backwards at a valid rust identifier"
+(defun verifast-looking-back-ident ()
+  "Non-nil if we are looking backwards at a valid verifast identifier"
   (let ((beg-of-symbol (save-excursion (forward-thing 'symbol -1) (point))))
-    (looking-back rust-re-ident beg-of-symbol)))
+    (looking-back verifast-re-ident beg-of-symbol)))
 
-(defun rust-looking-back-macro ()
+(defun verifast-looking-back-macro ()
   "Non-nil if looking back at an ident followed by a !"
-  (save-excursion (backward-char) (and (= ?! (char-after)) (rust-looking-back-ident))))
+  (save-excursion (backward-char) (and (= ?! (char-after)) (verifast-looking-back-ident))))
 
 ;; Syntax definitions and helpers
-(defvar rust-mode-syntax-table
+(defvar verifast-mode-syntax-table
   (let ((table (make-syntax-table)))
 
     ;; Operators
@@ -146,105 +146,105 @@
 
     table))
 
-(defgroup rust-mode nil
-  "Support for Rust code."
-  :link '(url-link "https://www.rust-lang.org/")
+(defgroup verifast-mode nil
+  "Support for Verifast code."
+  :link '(url-link "https://github.com/verifast/verifast")
   :group 'languages)
 
-(defcustom rust-indent-offset 4
-  "Indent Rust code by this number of spaces."
+(defcustom verifast-indent-offset 4
+  "Indent Verifast code by this number of spaces."
   :type 'integer
-  :group 'rust-mode
+  :group 'verifast-mode
   :safe #'integerp)
 
-(defcustom rust-indent-method-chain nil
-  "Indent Rust method chains, aligned by the '.' operators"
+(defcustom verifast-indent-method-chain nil
+  "Indent Verifast method chains, aligned by the '.' operators"
   :type 'boolean
-  :group 'rust-mode
+  :group 'verifast-mode
   :safe #'booleanp)
 
-(defcustom rust-indent-where-clause t
+(defcustom verifast-indent-where-clause t
   "Indent the line starting with the where keyword following a
 function or trait.  When nil, where will be aligned with fn or trait."
   :type 'boolean
-  :group 'rust-mode
+  :group 'verifast-mode
   :safe #'booleanp)
 
-(defcustom rust-playpen-url-format "https://play.rust-lang.org/?code=%s"
+(defcustom verifast-playpen-url-format "https://play.verifast-lang.org/?code=%s"
   "Format string to use when submitting code to the playpen"
   :type 'string
-  :group 'rust-mode)
-(defcustom rust-shortener-url-format "https://is.gd/create.php?format=simple&url=%s"
+  :group 'verifast-mode)
+(defcustom verifast-shortener-url-format "https://is.gd/create.php?format=simple&url=%s"
   "Format string to use for creating the shortened link of a playpen submission"
   :type 'string
-  :group 'rust-mode)
+  :group 'verifast-mode)
 
-(defcustom rust-match-angle-brackets t
+(defcustom verifast-match-angle-brackets t
   "Enable angle bracket matching.  Attempt to match `<' and `>' where
   appropriate."
   :type 'boolean
   :safe #'booleanp
-  :group 'rust-mode)
+  :group 'verifast-mode)
 
-(defcustom rust-format-on-save nil
-  "Format future rust buffers before saving using rustfmt."
+(defcustom verifast-format-on-save nil
+  "Format future verifast buffers before saving using verifastfmt."
   :type 'boolean
   :safe #'booleanp
-  :group 'rust-mode)
+  :group 'verifast-mode)
 
-(defcustom rust-rustfmt-bin "rustfmt"
-  "Path to rustfmt executable."
+(defcustom verifast-verifastfmt-bin "verifastfmt"
+  "Path to verifastfmt executable."
   :type 'string
-  :group 'rust-mode)
+  :group 'verifast-mode)
 
-(defface rust-unsafe-face
+(defface verifast-unsafe-face
   '((t :inherit font-lock-warning-face))
   "Face for the `unsafe' keyword."
-  :group 'rust-mode)
+  :group 'verifast-mode)
 
-(defun rust-paren-level () (nth 0 (syntax-ppss)))
-(defun rust-in-str-or-cmnt () (nth 8 (syntax-ppss)))
-(defun rust-rewind-past-str-cmnt () (goto-char (nth 8 (syntax-ppss))))
+(defun verifast-paren-level () (nth 0 (syntax-ppss)))
+(defun verifast-in-str-or-cmnt () (nth 8 (syntax-ppss)))
+(defun verifast-rewind-past-str-cmnt () (goto-char (nth 8 (syntax-ppss))))
 
-(defun rust-rewind-irrelevant ()
+(defun verifast-rewind-irrelevant ()
   (let ((continue t))
     (while continue
       (let ((starting (point)))
         (skip-chars-backward "[:space:]\n")
-        (when (rust-looking-back-str "*/")
+        (when (verifast-looking-back-str "*/")
           (backward-char))
-        (when (rust-in-str-or-cmnt)
-          (rust-rewind-past-str-cmnt))
+        (when (verifast-in-str-or-cmnt)
+          (verifast-rewind-past-str-cmnt))
         ;; Rewind until the point no longer moves
         (setq continue (/= starting (point)))))))
 
 
-(defun rust-in-macro ()
+(defun verifast-in-macro ()
   (save-excursion
-    (when (> (rust-paren-level) 0)
+    (when (> (verifast-paren-level) 0)
       (backward-up-list)
-      (rust-rewind-irrelevant)
-      (or (rust-looking-back-macro)
-          (and (rust-looking-back-ident) (save-excursion (backward-sexp) (rust-rewind-irrelevant) (rust-looking-back-str "macro_rules!")))
-          (rust-in-macro))
+      (verifast-rewind-irrelevant)
+      (or (verifast-looking-back-macro)
+          (and (verifast-looking-back-ident) (save-excursion (backward-sexp) (verifast-rewind-irrelevant) (verifast-looking-back-str "macro_rules!")))
+          (verifast-in-macro))
       )))
 
-(defun rust-looking-at-where ()
+(defun verifast-looking-at-where ()
   "Return T when looking at the \"where\" keyword."
   (and (looking-at-p "\\bwhere\\b")
-       (not (rust-in-str-or-cmnt))))
+       (not (verifast-in-str-or-cmnt))))
 
-(defun rust-rewind-to-where (&optional limit)
+(defun verifast-rewind-to-where (&optional limit)
   "Rewind the point to the closest occurrence of the \"where\" keyword.
 Return T iff a where-clause was found.  Does not rewind past
 LIMIT when passed, otherwise only stops at the beginning of the
 buffer."
   (when (re-search-backward "\\bwhere\\b" limit t)
-    (if (rust-in-str-or-cmnt)
-        (rust-rewind-to-where limit)
+    (if (verifast-in-str-or-cmnt)
+        (verifast-rewind-to-where limit)
       t)))
 
-(defun rust-align-to-expr-after-brace ()
+(defun verifast-align-to-expr-after-brace ()
   (save-excursion
     (forward-char)
     ;; We don't want to indent out to the open bracket if the
@@ -255,35 +255,35 @@ buffer."
     (backward-word 1))
       (current-column))))
 
-(defun rust-rewind-to-beginning-of-current-level-expr ()
-  (let ((current-level (rust-paren-level)))
+(defun verifast-rewind-to-beginning-of-current-level-expr ()
+  (let ((current-level (verifast-paren-level)))
     (back-to-indentation)
     (when (looking-at "->")
-      (rust-rewind-irrelevant)
+      (verifast-rewind-irrelevant)
       (back-to-indentation))
-    (while (> (rust-paren-level) current-level)
+    (while (> (verifast-paren-level) current-level)
       (backward-up-list)
       (back-to-indentation))
     ;; When we're in the where clause, skip over it.  First find out the start
     ;; of the function and its paren level.
     (let ((function-start nil) (function-level nil))
       (save-excursion
-        (rust-beginning-of-defun)
+        (verifast-beginning-of-defun)
         (back-to-indentation)
         ;; Avoid using multiple-value-bind
         (setq function-start (point)
-              function-level (rust-paren-level)))
+              function-level (verifast-paren-level)))
       ;; On a where clause
-      (when (or (rust-looking-at-where)
+      (when (or (verifast-looking-at-where)
                 ;; or in one of the following lines, e.g.
                 ;; where A: Eq
                 ;;       B: Hash <- on this line
                 (and (save-excursion
-                       (rust-rewind-to-where function-start))
+                       (verifast-rewind-to-where function-start))
                      (= current-level function-level)))
         (goto-char function-start)))))
 
-(defun rust-align-to-method-chain ()
+(defun verifast-align-to-method-chain ()
   (save-excursion
     ;; for method-chain alignment to apply, we must be looking at
     ;; another method call or field access or something like
@@ -302,18 +302,18 @@ buffer."
     ;; than to have an over-eager indent in all other cases which must
     ;; be undone via tab.
 
-    (when (looking-at (concat "\s*\." rust-re-ident))
+    (when (looking-at (concat "\s*\." verifast-re-ident))
       (forward-line -1)
       (end-of-line)
       ;; Keep going up (looking for a line that could contain a method chain)
       ;; while we're in a comment or on a blank line. Stop when the paren
       ;; level changes.
-      (let ((level (rust-paren-level)))
-        (while (and (or (rust-in-str-or-cmnt)
+      (let ((level (verifast-paren-level)))
+        (while (and (or (verifast-in-str-or-cmnt)
                         ;; Only whitespace (or nothing) from the beginning to
                         ;; the end of the line.
                         (looking-back "^\s*" (point-at-bol)))
-                    (= (rust-paren-level) level))
+                    (= (verifast-paren-level) level))
           (forward-line -1)
           (end-of-line)))
 
@@ -329,26 +329,26 @@ buffer."
           ;;
           ((skip-dot-identifier
             (lambda ()
-              (when (and (rust-looking-back-ident) (save-excursion (forward-thing 'symbol -1) (= ?. (char-before))))
+              (when (and (verifast-looking-back-ident) (save-excursion (forward-thing 'symbol -1) (= ?. (char-before))))
                 (forward-thing 'symbol -1)
                 (backward-char)
-                (- (current-column) rust-indent-offset)))))
+                (- (current-column) verifast-indent-offset)))))
         (cond
          ;; foo.bar(...)
-         ((rust-looking-back-str ")")
+         ((verifast-looking-back-str ")")
           (backward-list 1)
           (funcall skip-dot-identifier))
 
          ;; foo.bar
          (t (funcall skip-dot-identifier)))))))
 
-(defun rust-mode-indent-line ()
+(defun verifast-mode-indent-line ()
   (interactive)
   (let ((indent
          (save-excursion
            (back-to-indentation)
            ;; Point is now at beginning of current line
-           (let* ((level (rust-paren-level))
+           (let* ((level (verifast-paren-level))
                   (baseline
                    ;; Our "baseline" is one level out from the indentation of the expression
                    ;; containing the innermost enclosing opening bracket.  That
@@ -358,13 +358,13 @@ buffer."
                    (if (= 0 level)
                        0
                      (or
-                      (when rust-indent-method-chain
-                        (rust-align-to-method-chain))
+                      (when verifast-indent-method-chain
+                        (verifast-align-to-method-chain))
                       (save-excursion
-                        (rust-rewind-irrelevant)
+                        (verifast-rewind-irrelevant)
                         (backward-up-list)
-                        (rust-rewind-to-beginning-of-current-level-expr)
-                        (+ (current-column) rust-indent-offset))))))
+                        (verifast-rewind-to-beginning-of-current-level-expr)
+                        (+ (current-column) verifast-indent-offset))))))
              (cond
               ;; Indent inside a non-raw string only if the the previous line
               ;; ends with a backslash that is inside the same string
@@ -417,11 +417,11 @@ buffer."
               ((looking-at "->")
                (save-excursion
                  (backward-list)
-                 (or (rust-align-to-expr-after-brace)
-                     (+ baseline rust-indent-offset))))
+                 (or (verifast-align-to-expr-after-brace)
+                     (+ baseline verifast-indent-offset))))
 
               ;; A closing brace is 1 level unindented
-              ((looking-at "[]})]") (- baseline rust-indent-offset))
+              ((looking-at "[]})]") (- baseline verifast-indent-offset))
 
               ;; Doc comments in /** style with leading * indent to line up the *s
               ((and (nth 4 (syntax-ppss)) (looking-at "*"))
@@ -429,8 +429,8 @@ buffer."
 
               ;; When the user chose not to indent the start of the where
               ;; clause, put it on the baseline.
-              ((and (not rust-indent-where-clause)
-                    (rust-looking-at-where))
+              ((and (not verifast-indent-where-clause)
+                    (verifast-looking-at-where))
                baseline)
 
               ;; If we're in any other token-tree / sexp, then:
@@ -441,10 +441,10 @@ buffer."
                 ;; it as fields and align them.
                 (when (> level 0)
                   (save-excursion
-                    (rust-rewind-irrelevant)
+                    (verifast-rewind-irrelevant)
                     (backward-up-list)
                     ;; Point is now at the beginning of the containing set of braces
-                    (rust-align-to-expr-after-brace)))
+                    (verifast-align-to-expr-after-brace)))
 
                 ;; When where-clauses are spread over multiple lines, clauses
                 ;; should be aligned on the type parameters.  In this case we
@@ -455,20 +455,20 @@ buffer."
                   ;; our search for "where ".
                   (let ((function-start nil) (function-level nil))
                     (save-excursion
-                      (rust-beginning-of-defun)
+                      (verifast-beginning-of-defun)
                       (back-to-indentation)
                       ;; Avoid using multiple-value-bind
                       (setq function-start (point)
-                            function-level (rust-paren-level)))
+                            function-level (verifast-paren-level)))
                     ;; When we're not on a line starting with "where ", but
                     ;; still on a where-clause line, go to "where "
                     (when (and
-                           (not (rust-looking-at-where))
+                           (not (verifast-looking-at-where))
                            ;; We're looking at something like "F: ..."
-                           (looking-at (concat rust-re-ident ":"))
+                           (looking-at (concat verifast-re-ident ":"))
                            ;; There is a "where " somewhere after the
                            ;; start of the function.
-                           (rust-rewind-to-where function-start)
+                           (verifast-rewind-to-where function-start)
                            ;; Make sure we're not inside the function
                            ;; already (e.g. initializing a struct) by
                            ;; checking we are the same level.
@@ -479,7 +479,7 @@ buffer."
                       (if (eolp)
                           ;; in this case the type parameters bounds are just
                           ;; indented once
-                          (+ baseline rust-indent-offset)
+                          (+ baseline verifast-indent-offset)
                         ;; otherwise, skip over whitespace,
                         (skip-chars-forward "[:space:]")
                         ;; get the column of the type parameter and use that
@@ -499,7 +499,7 @@ buffer."
                        (looking-at "\\<else\\>\\|{\\|/[/*]")
 
                        (save-excursion
-                         (rust-rewind-irrelevant)
+                         (verifast-rewind-irrelevant)
                          ;; Point is now at the end of the previous line
                          (or
                           ;; If we are at the start of the buffer, no
@@ -510,12 +510,12 @@ buffer."
                           ;; then we are at the beginning of an expression, so stay on the baseline...
                           (looking-back "[(,:;?[{}]\\|[^|]|" (- (point) 2))
                           ;; or if the previous line is the end of an attribute, stay at the baseline...
-                          (progn (rust-rewind-to-beginning-of-current-level-expr) (looking-at "#")))))
+                          (progn (verifast-rewind-to-beginning-of-current-level-expr) (looking-at "#")))))
                       baseline
 
                     ;; Otherwise, we are continuing the same expression from the previous line,
                     ;; so add one additional indent level
-                    (+ baseline rust-indent-offset))))))))))
+                    (+ baseline verifast-indent-offset))))))))))
 
     (when indent
       ;; If we're at the beginning of the line (before or at the current
@@ -528,25 +528,21 @@ buffer."
 
 
 ;; Font-locking definitions and helpers
-(defconst rust-mode-keywords
-  '("as"
-    "box" "break"
-    "const" "continue" "crate"
+(defconst verifast-mode-keywords
+  '("lemma" "fixpoint" "predicate"
+    "requires" "ensures" "assert"
+    "switch" "case" "break"
+    "return" "typedef"
+    "const" "continue"
     "do"
     "else" "enum" "extern"
-    "false" "fn" "for"
-    "if" "impl" "in"
-    "let" "loop"
-    "match" "mod" "move" "mut"
-    "priv" "pub"
-    "ref" "return"
-    "self" "static" "struct" "super"
-    "true" "trait" "type"
-    "use"
-    "virtual"
-    "where" "while"))
+    "false" "for"
+    "if"
+    "static" "struct"
+    "true"
+    "while"))
 
-(defconst rust-special-types
+(defconst verifast-special-types
   '("u8" "i8"
     "u16" "i16"
     "u32" "i32"
@@ -557,84 +553,84 @@ buffer."
     "bool"
     "str" "char"))
 
-(defconst rust-re-type-or-constructor
+(defconst verifast-re-type-or-constructor
   (rx symbol-start
       (group upper (0+ (any word nonascii digit "_")))
       symbol-end))
 
-(defconst rust-re-pre-expression-operators "[-=!%&*/:<>[{(|.^;}]")
-(defun rust-re-word (inner) (concat "\\<" inner "\\>"))
-(defun rust-re-grab (inner) (concat "\\(" inner "\\)"))
-(defun rust-re-shy (inner) (concat "\\(?:" inner "\\)"))
-(defun rust-re-item-def (itype)
-  (concat (rust-re-word itype) "[[:space:]]+" (rust-re-grab rust-re-ident)))
-(defun rust-re-item-def-imenu (itype)
+(defconst verifast-re-pre-expression-operators "[-=!%&*/:<>[{(|.^;}]")
+(defun verifast-re-word (inner) (concat "\\<" inner "\\>"))
+(defun verifast-re-grab (inner) (concat "\\(" inner "\\)"))
+(defun verifast-re-shy (inner) (concat "\\(?:" inner "\\)"))
+(defun verifast-re-item-def (itype)
+  (concat (verifast-re-word itype) "[[:space:]]+" (verifast-re-grab verifast-re-ident)))
+(defun verifast-re-item-def-imenu (itype)
   (concat "^[[:space:]]*"
-          (rust-re-shy (concat (rust-re-word rust-re-vis) "[[:space:]]+")) "?"
-          (rust-re-shy (concat (rust-re-word rust-re-unsafe) "[[:space:]]+")) "?"
-          (rust-re-shy (concat (rust-re-word rust-re-extern) "[[:space:]]+"
-                               (rust-re-shy "\"[^\"]+\"[[:space:]]+") "?")) "?"
-          (rust-re-item-def itype)))
+          (verifast-re-shy (concat (verifast-re-word verifast-re-vis) "[[:space:]]+")) "?"
+          (verifast-re-shy (concat (verifast-re-word verifast-re-unsafe) "[[:space:]]+")) "?"
+          (verifast-re-shy (concat (verifast-re-word verifast-re-extern) "[[:space:]]+"
+                               (verifast-re-shy "\"[^\"]+\"[[:space:]]+") "?")) "?"
+          (verifast-re-item-def itype)))
 
-(defconst rust-re-special-types (regexp-opt rust-special-types 'symbols))
+(defconst verifast-re-special-types (regexp-opt verifast-special-types 'symbols))
 
 
-(defun rust-path-font-lock-matcher (re-ident)
+(defun verifast-path-font-lock-matcher (re-ident)
   "Matches names like \"foo::\" or \"Foo::\" (depending on RE-IDENT, which should match
 the desired identifiers), but does not match type annotations \"foo::<\"."
   `(lambda (limit)
-     (catch 'rust-path-font-lock-matcher
+     (catch 'verifast-path-font-lock-matcher
        (while t
          (let* ((symbol-then-colons (rx-to-string '(seq (group (regexp ,re-ident)) "::")))
                 (match (re-search-forward symbol-then-colons limit t)))
            (cond
             ;; If we didn't find a match, there are no more occurrences
             ;; of foo::, so return.
-            ((null match) (throw 'rust-path-font-lock-matcher nil))
+            ((null match) (throw 'verifast-path-font-lock-matcher nil))
             ;; If this isn't a type annotation foo::<, we've found a
             ;; match, so a return it!
             ((not (looking-at (rx (0+ space) "<")))
-	     (throw 'rust-path-font-lock-matcher match))))))))
+	     (throw 'verifast-path-font-lock-matcher match))))))))
 
-(defvar rust-mode-font-lock-keywords
+(defvar verifast-mode-font-lock-keywords
   (append
    `(
      ;; Keywords proper
-     (,(regexp-opt rust-mode-keywords 'symbols) . font-lock-keyword-face)
+     (,(regexp-opt verifast-mode-keywords 'symbols) . font-lock-keyword-face)
 
      ;; Special types
-     (,(regexp-opt rust-special-types 'symbols) . font-lock-type-face)
+     (,(regexp-opt verifast-special-types 'symbols) . font-lock-type-face)
 
      ;; The unsafe keyword
-     ("\\_<unsafe\\_>" . 'rust-unsafe-face)
+     ("\\_<unsafe\\_>" . 'verifast-unsafe-face)
 
      ;; Attributes like `#[bar(baz)]` or `#![bar(baz)]` or `#[bar = "baz"]`
-     (,(rust-re-grab (concat "#\\!?\\[" rust-re-ident "[^]]*\\]"))
+     (,(verifast-re-grab (concat "#\\!?\\[" verifast-re-ident "[^]]*\\]"))
       1 font-lock-preprocessor-face keep)
 
      ;; Syntax extension invocations like `foo!`, highlight including the !
-     (,(concat (rust-re-grab (concat rust-re-ident "!")) "[({[:space:][]")
+     (,(concat (verifast-re-grab (concat verifast-re-ident "!")) "[({[:space:][]")
       1 font-lock-preprocessor-face)
 
      ;; Field names like `foo:`, highlight excluding the :
-     (,(concat (rust-re-grab rust-re-ident) ":[^:]") 1 font-lock-variable-name-face)
+     (,(concat (verifast-re-grab verifast-re-ident) ":[^:]") 1 font-lock-variable-name-face)
 
      ;; Type names like `Foo::`, highlight excluding the ::
-     (,(rust-path-font-lock-matcher rust-re-uc-ident) 1 font-lock-type-face)
+     (,(verifast-path-font-lock-matcher verifast-re-uc-ident) 1 font-lock-type-face)
 
      ;; Module names like `foo::`, highlight excluding the ::
-     (,(rust-path-font-lock-matcher rust-re-lc-ident) 1 font-lock-constant-face)
+     (,(verifast-path-font-lock-matcher verifast-re-lc-ident) 1 font-lock-constant-face)
 
      ;; Lifetimes like `'foo`
-     (,(concat "'" (rust-re-grab rust-re-ident) "[^']") 1 font-lock-variable-name-face)
+     (,(concat "'" (verifast-re-grab verifast-re-ident) "[^']") 1 font-lock-variable-name-face)
 
      ;; CamelCase Means Type Or Constructor
-     (,rust-re-type-or-constructor 1 font-lock-type-face)
+     (,verifast-re-type-or-constructor 1 font-lock-type-face)
      )
 
    ;; Item definitions
    (mapcar #'(lambda (x)
-               (list (rust-re-item-def (car x))
+               (list (verifast-re-item-def (car x))
                      1 (cdr x)))
            '(("enum" . font-lock-type-face)
              ("struct" . font-lock-type-face)
@@ -646,7 +642,7 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
 (defvar font-lock-beg)
 (defvar font-lock-end)
 
-(defun rust-font-lock-extend-region ()
+(defun verifast-font-lock-extend-region ()
   "Extend the region given by `font-lock-beg' and `font-lock-end'
   to include the beginning of a string or comment if it includes
   part of it.  Adjusts to include the r[#] of a raw string as
@@ -681,7 +677,7 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
       (save-match-data
         (goto-char font-lock-beg)
         (while (and (< (point) font-lock-end)
-                    (re-search-forward rust-re-non-standard-string (buffer-end 1) t)
+                    (re-search-forward verifast-re-non-standard-string (buffer-end 1) t)
                     (<= (match-beginning 0) font-lock-end))
           (setq font-lock-end (max font-lock-end (match-end 0)))
           (goto-char (1+ (match-beginning 0)))))
@@ -690,7 +686,7 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
           (/= font-lock-end orig-end))
       )))
 
-(defun rust-conditional-re-search-forward (regexp bound condition)
+(defun verifast-conditional-re-search-forward (regexp bound condition)
   ;; Search forward for regexp (with bound).  If found, call condition and return the found
   ;; match only if it returns true.
   (let* (found
@@ -716,12 +712,12 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
       (set-match-data (nth 1 ret-list))
       (nth 0 ret-list))))
 
-(defun rust-look-for-non-standard-string (bound)
+(defun verifast-look-for-non-standard-string (bound)
   ;; Find a raw string or character literal, but only if it's not in the middle
   ;; of another string or a comment.
 
-  (rust-conditional-re-search-forward
-   rust-re-non-standard-string
+  (verifast-conditional-re-search-forward
+   verifast-re-non-standard-string
    bound
    (lambda ()
      (let ((pstate (syntax-ppss (match-beginning 0))))
@@ -731,43 +727,43 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
          (and (nth 3 pstate) (wholenump (nth 8 pstate)) (< (nth 8 pstate) (match-beginning 0))) ;; Skip if in a string that isn't starting here
          ))))))
 
-(defun rust-syntax-class-before-point ()
+(defun verifast-syntax-class-before-point ()
   (when (> (point) 1)
     (syntax-class (syntax-after (1- (point))))))
 
-(defun rust-rewind-qualified-ident ()
-  (while (rust-looking-back-ident)
+(defun verifast-rewind-qualified-ident ()
+  (while (verifast-looking-back-ident)
     (backward-sexp)
-    (when (save-excursion (rust-rewind-irrelevant) (rust-looking-back-str "::"))
-      (rust-rewind-irrelevant)
+    (when (save-excursion (verifast-rewind-irrelevant) (verifast-looking-back-str "::"))
+      (verifast-rewind-irrelevant)
       (backward-char 2)
-      (rust-rewind-irrelevant))))
+      (verifast-rewind-irrelevant))))
 
-(defun rust-rewind-type-param-list ()
+(defun verifast-rewind-type-param-list ()
   (cond
-   ((and (rust-looking-back-str ">") (equal 5 (rust-syntax-class-before-point)))
+   ((and (verifast-looking-back-str ">") (equal 5 (verifast-syntax-class-before-point)))
     (backward-sexp)
-    (rust-rewind-irrelevant))
+    (verifast-rewind-irrelevant))
 
    ;; We need to be able to back up past the Fn(args) -> RT form as well.  If
    ;; we're looking back at this, we want to end up just after "Fn".
    ((member (char-before) '(?\] ?\) ))
-    (let* ((is-paren (rust-looking-back-str ")"))
+    (let* ((is-paren (verifast-looking-back-str ")"))
            (dest (save-excursion
                   (backward-sexp)
-                  (rust-rewind-irrelevant)
+                  (verifast-rewind-irrelevant)
                   (or
-                   (when (rust-looking-back-str "->")
+                   (when (verifast-looking-back-str "->")
                      (backward-char 2)
-                     (rust-rewind-irrelevant)
-                     (when (rust-looking-back-str ")")
+                     (verifast-rewind-irrelevant)
+                     (when (verifast-looking-back-str ")")
                        (backward-sexp)
                        (point)))
                    (and is-paren (point))))))
       (when dest
         (goto-char dest))))))
 
-(defun rust-rewind-to-decl-name ()
+(defun verifast-rewind-to-decl-name ()
   "If we are before an ident that is part of a declaration that
   can have a where clause, rewind back to just before the name of
   the subject of that where clause and return the new point.
@@ -775,79 +771,79 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
   
   (let* ((ident-pos (point))
          (newpos (save-excursion
-                   (rust-rewind-irrelevant)
-                   (rust-rewind-type-param-list)
+                   (verifast-rewind-irrelevant)
+                   (verifast-rewind-type-param-list)
                    (cond
-                       ((rust-looking-back-symbols '("fn" "trait" "enum" "struct" "impl" "type")) ident-pos)
+                       ((verifast-looking-back-symbols '("fn" "trait" "enum" "struct" "impl" "type")) ident-pos)
 
-                       ((equal 5 (rust-syntax-class-before-point))
+                       ((equal 5 (verifast-syntax-class-before-point))
                         (backward-sexp)
-                        (rust-rewind-to-decl-name))
+                        (verifast-rewind-to-decl-name))
 
                        ((looking-back "[:,'+=]" (1- (point)))
                         (backward-char)
-                        (rust-rewind-to-decl-name))
+                        (verifast-rewind-to-decl-name))
 
-                       ((rust-looking-back-str "->")
+                       ((verifast-looking-back-str "->")
                         (backward-char 2)
-                        (rust-rewind-to-decl-name))
+                        (verifast-rewind-to-decl-name))
 
-                       ((rust-looking-back-ident)
-                        (rust-rewind-qualified-ident)
-                        (rust-rewind-to-decl-name))))))
+                       ((verifast-looking-back-ident)
+                        (verifast-rewind-qualified-ident)
+                        (verifast-rewind-to-decl-name))))))
     (when newpos (goto-char newpos))
     newpos))
 
-(defun rust-is-in-expression-context (token)
+(defun verifast-is-in-expression-context (token)
   "Return t if what comes right after the point is part of an
   expression (as opposed to starting a type) by looking at what
   comes before.  Takes a symbol that roughly indicates what is
   after the point.
 
-  This function is used as part of `rust-is-lt-char-operator' as
+  This function is used as part of `verifast-is-lt-char-operator' as
   part of angle bracket matching, and is not intended to be used
   outside of this context."
 
   (save-excursion
     (let ((postchar (char-after)))
-      (rust-rewind-irrelevant)
+      (verifast-rewind-irrelevant)
 
       ;; A type alias or ascription could have a type param list.  Skip backwards past it.
       (when (member token '(ambiguous-operator open-brace))
-        (rust-rewind-type-param-list))
+        (verifast-rewind-type-param-list))
       
       (cond
 
        ;; Certain keywords always introduce expressions
-       ((rust-looking-back-symbols '("if" "while" "match" "return" "box" "in")) t)
+       ((verifast-looking-back-symbols '("if" "while" "match" "return" "box" "in")) t)
 
        ;; "as" introduces a type
-       ((rust-looking-back-symbols '("as")) nil)
+       ((verifast-looking-back-symbols '("as")) nil)
 
        ;; An open angle bracket never introduces expression context WITHIN the angle brackets
        ((and (equal token 'open-brace) (equal postchar ?<)) nil)
 
        ;; An ident! followed by an open brace is a macro invocation.  Consider
        ;; it to be an expression.
-       ((and (equal token 'open-brace) (rust-looking-back-macro)) t)
+       ((and (equal token 'open-brace) (verifast-looking-back-macro)) t)
        
        ;; An identifier is right after an ending paren, bracket, angle bracket
        ;; or curly brace.  It's a type if the last sexp was a type.
-       ((and (equal token 'ident) (equal 5 (rust-syntax-class-before-point)))
+       ((and (equal token 'ident) (equal 5 (verifast-syntax-class-before-point)))
         (backward-sexp)
-        (rust-is-in-expression-context 'open-brace))
+        (verifast-is-in-expression-context 'open-brace))
 
        ;; If a "for" appears without a ; or { before it, it's part of an
        ;; "impl X for y", so the y is a type.  Otherwise it's
        ;; introducing a loop, so the y is an expression
-       ((and (equal token 'ident) (rust-looking-back-symbols '("for")))
+       ((and (equal token 'ident) (verifast-looking-back-symbols '("for")))
         (backward-sexp)
-        (rust-rewind-irrelevant)
+        (verifast-rewind-irrelevant)
         (looking-back "[{;]" (1- (point))))
        
-       ((rust-looking-back-ident)
-        (rust-rewind-qualified-ident)
-        (rust-rewind-irrelevant)
+       ((verifast-looking-back-ident)
+        (verifast-rewind-qualified-ident)
+        (verifast-rewind-irrelevant)
         (cond
          ((equal token 'open-brace)
           ;; We now know we have:
@@ -855,17 +851,17 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
           ;; where [{([] denotes either a {, ( or [.  This character is bound as postchar.
           (cond
            ;; If postchar is a paren or square bracket, then if the brace is a type if the identifier is one
-           ((member postchar '(?\( ?\[ )) (rust-is-in-expression-context 'ident))
+           ((member postchar '(?\( ?\[ )) (verifast-is-in-expression-context 'ident))
 
            ;; If postchar is a curly brace, the brace can only be a type if
            ;; ident2 is the name of an enum, struct or trait being declared.
            ;; Note that if there is a -> before the ident then the ident would
            ;; be a type but the { is not.
            ((equal ?{ postchar)
-            (not (and (rust-rewind-to-decl-name)
+            (not (and (verifast-rewind-to-decl-name)
                       (progn
-                        (rust-rewind-irrelevant)
-                        (rust-looking-back-symbols '("enum" "struct" "trait" "type"))))))
+                        (verifast-rewind-irrelevant)
+                        (verifast-looking-back-symbols '("enum" "struct" "trait" "type"))))))
            ))
          
          ((equal token 'ambiguous-operator)
@@ -876,37 +872,37 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
            ;; A : followed by a type then an = introduces an expression (unless it is part of a where clause of a "type" declaration)
            ((and (equal postchar ?=)
                  (looking-back "[^:]:" (- (point) 2))
-                 (not (save-excursion (and (rust-rewind-to-decl-name) (progn (rust-rewind-irrelevant) (rust-looking-back-symbols '("type"))))))))
+                 (not (save-excursion (and (verifast-rewind-to-decl-name) (progn (verifast-rewind-irrelevant) (verifast-looking-back-symbols '("type"))))))))
 
            ;; "let ident =" introduces an expression--and so does "const" and "mut"
-           ((and (equal postchar ?=) (rust-looking-back-symbols '("let" "const" "mut"))) t)
+           ((and (equal postchar ?=) (verifast-looking-back-symbols '("let" "const" "mut"))) t)
 
            ;; As a specific special case, see if this is the = in this situation:
            ;;     enum EnumName<type params> { Ident =
            ;; In this case, this is a c-like enum and despite Ident
            ;; representing a type, what comes after the = is an expression
            ((and
-             (> (rust-paren-level) 0)
+             (> (verifast-paren-level) 0)
              (save-excursion
                (backward-up-list)
-               (rust-rewind-irrelevant)
-               (rust-rewind-type-param-list)
+               (verifast-rewind-irrelevant)
+               (verifast-rewind-type-param-list)
                (and
-                (rust-looking-back-ident)
+                (verifast-looking-back-ident)
                 (progn
-                  (rust-rewind-qualified-ident)
-                  (rust-rewind-irrelevant)
-                  (rust-looking-back-str "enum")))))
+                  (verifast-rewind-qualified-ident)
+                  (verifast-rewind-irrelevant)
+                  (verifast-looking-back-str "enum")))))
             t)
            
            ;; Otherwise the ambiguous operator is a type if the identifier is a type
-           ((rust-is-in-expression-context 'ident) t)))
+           ((verifast-is-in-expression-context 'ident) t)))
 
          ((equal token 'colon)
           (cond
            ;; If we see a ident: not inside any braces/parens, we're at top level.
            ;; There are no allowed expressions after colons there, just types.
-           ((<= (rust-paren-level) 0) nil)
+           ((<= (verifast-paren-level) 0) nil)
 
            ;; We see ident: inside a list
            ((looking-back "[{,]" (1- (point)))
@@ -916,9 +912,9 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
             ;; anything other than curly braces, it can't be a field
             ;; initializer and must be denoting a type.
             (when (looking-at "{")
-              (rust-rewind-irrelevant)
-              (rust-rewind-type-param-list)
-              (when (rust-looking-back-ident)
+              (verifast-rewind-irrelevant)
+              (verifast-rewind-type-param-list)
+              (when (verifast-looking-back-ident)
                 ;; We have a context that looks like this:
                 ;;    ident2 <maybe type params> { [maybe paren-balanced code ending in comma] ident1:
                 ;; the point is sitting just after ident2, and we trying to
@@ -926,8 +922,8 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
                 ;; The answer is that ident1 is a field name, and what comes
                 ;; after the colon is an expression, if ident2 is an
                 ;; expression.
-                (rust-rewind-qualified-ident)
-                (rust-is-in-expression-context 'ident))))
+                (verifast-rewind-qualified-ident)
+                (verifast-is-in-expression-context 'ident))))
 
 
            ;; Otherwise, if the ident: appeared with anything other than , or {
@@ -939,94 +935,94 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
 
        ;; An operator-like character after a string is indeed an operator
        ((and (equal token 'ambiguous-operator)
-             (member (rust-syntax-class-before-point) '(5 7 15))) t)
+             (member (verifast-syntax-class-before-point) '(5 7 15))) t)
 
        ;; A colon that has something other than an identifier before it is a
        ;; type ascription
        ((equal token 'colon) nil)
 
        ;; A :: introduces a type (or module, but not an expression in any case)
-       ((rust-looking-back-str "::") nil)
+       ((verifast-looking-back-str "::") nil)
        
-       ((rust-looking-back-str ":")
+       ((verifast-looking-back-str ":")
         (backward-char)
-        (rust-is-in-expression-context 'colon))
+        (verifast-is-in-expression-context 'colon))
 
        ;; A -> introduces a type
-       ((rust-looking-back-str "->") nil)
+       ((verifast-looking-back-str "->") nil)
 
        ;; If we are up against the beginning of a list, or after a comma inside
        ;; of one, back up out of it and check what the list itself is
        ((or
-         (equal 4 (rust-syntax-class-before-point))
-         (rust-looking-back-str ","))
+         (equal 4 (verifast-syntax-class-before-point))
+         (verifast-looking-back-str ","))
         (backward-up-list)
-        (rust-is-in-expression-context 'open-brace))
+        (verifast-is-in-expression-context 'open-brace))
 
        ;; A => introduces an expression
-       ((rust-looking-back-str "=>") t)
+       ((verifast-looking-back-str "=>") t)
 
        ;; A == introduces an expression
-       ((rust-looking-back-str "==") t)
+       ((verifast-looking-back-str "==") t)
 
        ;; These operators can introduce expressions or types
        ((looking-back "[-+=!?&*]" (1- (point)))
         (backward-char)
-        (rust-is-in-expression-context 'ambiguous-operator))
+        (verifast-is-in-expression-context 'ambiguous-operator))
 
        ;; These operators always introduce expressions.  (Note that if this
        ;; regexp finds a < it must not be an angle bracket, or it'd
        ;; have been caught in the syntax-class check above instead of this.)
-       ((looking-back rust-re-pre-expression-operators (1- (point))) t)
+       ((looking-back verifast-re-pre-expression-operators (1- (point))) t)
        ))))
 
-(defun rust-is-lt-char-operator ()
+(defun verifast-is-lt-char-operator ()
   "Return t if the < sign just after point is an operator rather
   than an opening angle bracket, otherwise nil."
   
   (let ((case-fold-search nil))
     (save-excursion
-      (rust-rewind-irrelevant)
+      (verifast-rewind-irrelevant)
       ;; We are now just after the character syntactically before the <.
       (cond
 
        ;; If we are looking back at a < that is not an angle bracket (but not
        ;; two of them) then this is the second < in a bit shift operator
-       ((and (rust-looking-back-str "<")
-             (not (equal 4 (rust-syntax-class-before-point)))
-             (not (rust-looking-back-str "<<"))))
+       ((and (verifast-looking-back-str "<")
+             (not (equal 4 (verifast-syntax-class-before-point)))
+             (not (verifast-looking-back-str "<<"))))
        
        ;; On the other hand, if we are after a closing paren/brace/bracket it
        ;; can only be an operator, not an angle bracket.  Likewise, if we are
        ;; after a string it's an operator.  (The string case could actually be
-       ;; valid in rust for character literals.)
-       ((member (rust-syntax-class-before-point) '(5 7 15)) t)
+       ;; valid in verifast for character literals.)
+       ((member (verifast-syntax-class-before-point) '(5 7 15)) t)
 
        ;; If we are looking back at an operator, we know that we are at
        ;; the beginning of an expression, and thus it has to be an angle
        ;; bracket (starting a "<Type as Trait>::" construct.)
-       ((looking-back rust-re-pre-expression-operators (1- (point))) nil)
+       ((looking-back verifast-re-pre-expression-operators (1- (point))) nil)
 
        ;; If we are looking back at a keyword, it's an angle bracket
        ;; unless that keyword is "self", "true" or "false"
-       ((rust-looking-back-symbols rust-mode-keywords)
-        (rust-looking-back-symbols '("self" "true" "false")))
+       ((verifast-looking-back-symbols verifast-mode-keywords)
+        (verifast-looking-back-symbols '("self" "true" "false")))
 
        ;; If we're looking back at an identifier, this depends on whether
        ;; the identifier is part of an expression or a type
-       ((rust-looking-back-ident)
+       ((verifast-looking-back-ident)
         (backward-sexp)
         (or
          ;; The special types can't take type param lists, so a < after one is
          ;; always an operator
-         (looking-at rust-re-special-types)
+         (looking-at verifast-re-special-types)
          
-         (rust-is-in-expression-context 'ident)))
+         (verifast-is-in-expression-context 'ident)))
 
        ;; Otherwise, assume it's an angle bracket
        ))))
 
-(defun rust-electric-pair-inhibit-predicate-wrap (char)
+(defun verifast-electric-pair-inhibit-predicate-wrap (char)
   "Wraps the default `electric-pair-inhibit-predicate' to prevent
   inserting a \"matching\" > after a < that would be treated as a
   less than sign rather than as an opening angle bracket."
@@ -1034,10 +1030,10 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
    (when (= ?< char)
      (save-excursion
        (backward-char)
-       (rust-is-lt-char-operator)))
+       (verifast-is-lt-char-operator)))
    (funcall (default-value 'electric-pair-inhibit-predicate) char)))
 
-(defun rust-look-for-non-angle-bracket-lt-gt (bound)
+(defun verifast-look-for-non-angle-bracket-lt-gt (bound)
   "Find an angle bracket (\"<\" or \">\") that should be part of
   a matched pair Relies on the fact that when it finds a < or >,
   we have already decided which previous ones are angle brackets
@@ -1046,25 +1042,25 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
   arbitrary positions without the earlier parts of the buffer
   having already been covered."
 
-  (rust-conditional-re-search-forward
+  (verifast-conditional-re-search-forward
    "[<>]" bound
    (lambda ()
      (goto-char (match-beginning 0))
      (cond
       ;; If matching is turned off suppress all of them
-      ((not rust-match-angle-brackets) t)
+      ((not verifast-match-angle-brackets) t)
 
       ;; We don't take < or > in strings or comments to be angle brackets
-      ((rust-in-str-or-cmnt) t)
+      ((verifast-in-str-or-cmnt) t)
 
       ;; Inside a macro we don't really know the syntax.  Any < or > may be an
       ;; angle bracket or it may not.  But we know that the other braces have
       ;; to balance regardless of the < and >, so if we don't treat any < or >
       ;; as angle brackets it won't mess up any paren balancing.
-      ((rust-in-macro) t)
+      ((verifast-in-macro) t)
       
       ((looking-at "<")
-       (rust-is-lt-char-operator))
+       (verifast-is-lt-char-operator))
 
       ((looking-at ">")
        (cond
@@ -1073,7 +1069,7 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
 
         ;; If we are at top level and not in any list, it can't be a closing
         ;; angle bracket
-        ((>= 0 (rust-paren-level)) t)
+        ((>= 0 (verifast-paren-level)) t)
 
         ;; Otherwise, treat the > as a closing angle bracket if it would
         ;; match an opening one
@@ -1081,14 +1077,14 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
            (backward-up-list)
            (not (looking-at "<"))))))))))
 
-(defvar rust-mode-font-lock-syntactic-keywords
+(defvar verifast-mode-font-lock-syntactic-keywords
   (append
    ;; Handle raw strings and character literals:
-   `((rust-look-for-non-standard-string (1 "|" nil t) (4 "_" nil t) (5 "|" nil t) (6 "|" nil t) (7 "\"" nil t) (8 "\"" nil t)))
+   `((verifast-look-for-non-standard-string (1 "|" nil t) (4 "_" nil t) (5 "|" nil t) (6 "|" nil t) (7 "\"" nil t) (8 "\"" nil t)))
    ;; Find where < and > characters represent operators rather than angle brackets:
-   '((rust-look-for-non-angle-bracket-lt-gt (0 "." t)))))
+   '((verifast-look-for-non-angle-bracket-lt-gt (0 "." t)))))
 
-(defun rust-mode-syntactic-face-function (state)
+(defun verifast-mode-syntactic-face-function (state)
   "Syntactic face function to distinguish doc comments from other comments."
   (if (nth 3 state) 'font-lock-string-face
     (save-excursion
@@ -1098,7 +1094,7 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
         'font-lock-comment-face
     ))))
 
-(defun rust-fill-prefix-for-comment-start (line-start)
+(defun verifast-fill-prefix-for-comment-start (line-start)
   "Determine what to use for `fill-prefix' based on what is at the beginning of a line."
   (let ((result
          ;; Replace /* with same number of spaces
@@ -1121,7 +1117,7 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
         (setq result (concat result " ")))
     result))
 
-(defun rust-in-comment-paragraph (body)
+(defun verifast-in-comment-paragraph (body)
   ;; We might move the point to fill the next comment, but we don't want it
   ;; seeming to jump around on the user
   (save-excursion
@@ -1162,7 +1158,7 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
       (goto-char (line-end-position 0)))
     (funcall body)))
 
-(defun rust-with-comment-fill-prefix (body)
+(defun verifast-with-comment-fill-prefix (body)
   (let*
       ((line-string (buffer-substring-no-properties
                      (line-beginning-position) (line-end-position)))
@@ -1176,82 +1172,82 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
            ;; If we're at the start of a comment, figure out what prefix
            ;; to use for the subsequent lines after it
            ((string-match (concat "[[:space:]]*" comment-start-skip) line-string)
-            (rust-fill-prefix-for-comment-start
+            (verifast-fill-prefix-for-comment-start
              (match-string 0 line-string))))))
        (fill-prefix
         (or line-comment-start
             fill-prefix)))
     (funcall body)))
 
-(defun rust-find-fill-prefix ()
-  (rust-in-comment-paragraph (lambda () (rust-with-comment-fill-prefix (lambda () fill-prefix)))))
+(defun verifast-find-fill-prefix ()
+  (verifast-in-comment-paragraph (lambda () (verifast-with-comment-fill-prefix (lambda () fill-prefix)))))
 
-(defun rust-fill-paragraph (&rest args)
+(defun verifast-fill-paragraph (&rest args)
   "Special wrapping for `fill-paragraph' to handle multi-line comments with a * prefix on each line."
-  (rust-in-comment-paragraph
+  (verifast-in-comment-paragraph
    (lambda ()
-     (rust-with-comment-fill-prefix
+     (verifast-with-comment-fill-prefix
       (lambda ()
         (let
             ((fill-paragraph-function
-              (if (not (eq fill-paragraph-function 'rust-fill-paragraph))
+              (if (not (eq fill-paragraph-function 'verifast-fill-paragraph))
                   fill-paragraph-function))
              (fill-paragraph-handle-comment t))
           (apply 'fill-paragraph args)
           t))))))
 
-(defun rust-do-auto-fill (&rest args)
+(defun verifast-do-auto-fill (&rest args)
   "Special wrapping for `do-auto-fill' to handle multi-line comments with a * prefix on each line."
-  (rust-with-comment-fill-prefix
+  (verifast-with-comment-fill-prefix
    (lambda ()
      (apply 'do-auto-fill args)
      t)))
 
-(defun rust-fill-forward-paragraph (arg)
+(defun verifast-fill-forward-paragraph (arg)
   ;; This is to work around some funny behavior when a paragraph separator is
   ;; at the very top of the file and there is a fill prefix.
   (let ((fill-prefix nil)) (forward-paragraph arg)))
 
-(defun rust-comment-indent-new-line (&optional arg)
-  (rust-with-comment-fill-prefix
+(defun verifast-comment-indent-new-line (&optional arg)
+  (verifast-with-comment-fill-prefix
    (lambda () (comment-indent-new-line arg))))
 
 ;;; Imenu support
-(defvar rust-imenu-generic-expression
+(defvar verifast-imenu-generic-expression
   (append (mapcar #'(lambda (x)
-                      (list (capitalize x) (rust-re-item-def-imenu x) 1))
+                      (list (capitalize x) (verifast-re-item-def-imenu x) 1))
                   '("enum" "struct" "type" "mod" "fn" "trait" "impl"))
-          `(("Macro" ,(rust-re-item-def-imenu "macro_rules!") 1)))
-  "Value for `imenu-generic-expression' in Rust mode.
+          `(("Macro" ,(verifast-re-item-def-imenu "macro_rules!") 1)))
+  "Value for `imenu-generic-expression' in Verifast mode.
 
-Create a hierarchical index of the item definitions in a Rust file.
+Create a hierarchical index of the item definitions in a Verifast file.
 
 Imenu will show all the enums, structs, etc. in their own subheading.
 Use idomenu (imenu with `ido-mode') for best mileage.")
 
 ;;; Defun Motions
 
-;;; Start of a Rust item
-(defvar rust-top-item-beg-re
+;;; Start of a Verifast item
+(defvar verifast-top-item-beg-re
   (concat "^\\s-*\\(?:priv\\|pub\\)?\\s-*"
           (regexp-opt
            '("enum" "struct" "type" "mod" "use" "fn" "static" "impl"
              "extern" "trait"))))
 
-(defun rust-beginning-of-defun (&optional arg)
+(defun verifast-beginning-of-defun (&optional arg)
   "Move backward to the beginning of the current defun.
 
 With ARG, move backward multiple defuns.  Negative ARG means
 move forward.
 
-This is written mainly to be used as `beginning-of-defun-function' for Rust.
+This is written mainly to be used as `beginning-of-defun-function' for Verifast.
 Don't move to the beginning of the line. `beginning-of-defun',
 which calls this, does that afterwards."
   (interactive "p")
-  (re-search-backward (concat "^\\(" rust-top-item-beg-re "\\)\\_>")
+  (re-search-backward (concat "^\\(" verifast-top-item-beg-re "\\)\\_>")
                       nil 'move (or arg 1)))
 
-(defun rust-end-of-defun ()
+(defun verifast-end-of-defun ()
   "Move forward to the next end of defun.
 
 With argument, do it that many times.
@@ -1260,7 +1256,7 @@ Negative argument -N means move back to Nth preceding end of defun.
 Assume that this is called after beginning-of-defun. So point is
 at the beginning of the defun body.
 
-This is written mainly to be used as `end-of-defun-function' for Rust."
+This is written mainly to be used as `end-of-defun-function' for Verifast."
   (interactive)
   ;; Find the opening brace
   (if (re-search-forward "[{]" nil t)
@@ -1275,25 +1271,25 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
     ;; There is no opening brace, so consider the whole buffer to be one "defun"
     (goto-char (point-max))))
 
-;; Formatting using rustfmt
-(defun rust--format-call (buf)
-  "Format BUF using rustfmt."
-  (with-current-buffer (get-buffer-create "*rustfmt*")
+;; Formatting using verifastfmt
+(defun verifast--format-call (buf)
+  "Format BUF using verifastfmt."
+  (with-current-buffer (get-buffer-create "*verifastfmt*")
     (erase-buffer)
     (insert-buffer-substring buf)
-    (if (zerop (call-process-region (point-min) (point-max) rust-rustfmt-bin t t nil))
+    (if (zerop (call-process-region (point-min) (point-max) verifast-verifastfmt-bin t t nil))
         (progn
           (if (not (string= (buffer-string) (with-current-buffer buf (buffer-string))))
               (copy-to-buffer buf (point-min) (point-max)))
           (kill-buffer))
-      (error "Rustfmt failed, see *rustfmt* buffer for details"))))
+      (error "Verifastfmt failed, see *verifastfmt* buffer for details"))))
 
-(defconst rust--format-word "\\b\\(else\\|enum\\|fn\\|for\\|if\\|let\\|loop\\|match\\|struct\\|unsafe\\|while\\)\\b")
-(defconst rust--format-line "\\([\n]\\)")
+(defconst verifast--format-word "\\b\\(else\\|enum\\|fn\\|for\\|if\\|let\\|loop\\|match\\|struct\\|unsafe\\|while\\)\\b")
+(defconst verifast--format-line "\\([\n]\\)")
 
 ;; Counts number of matches of regex beginning up to max-beginning,
 ;; leaving the point at the beginning of the last match.
-(defun rust--format-count (regex max-beginning)
+(defun verifast--format-count (regex max-beginning)
   (let ((count 0)
         save-point
         beginning)
@@ -1314,17 +1310,17 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
 
 ;; Gets list describing pos or (point).
 ;; The list contains:
-;; 1. the number of matches of rust--format-word,
-;; 2. the number of matches of rust--format-line after that,
+;; 1. the number of matches of verifast--format-word,
+;; 2. the number of matches of verifast--format-line after that,
 ;; 3. the number of columns after that.
-(defun rust--format-get-loc (buffer &optional pos)
+(defun verifast--format-get-loc (buffer &optional pos)
   (with-current-buffer buffer
     (save-excursion
       (let ((pos (or pos (point)))
             words lines columns)
         (goto-char (point-min))
-        (setq words (rust--format-count rust--format-word pos))
-        (setq lines (rust--format-count rust--format-line pos))
+        (setq words (verifast--format-count verifast--format-word pos))
+        (setq lines (verifast--format-count verifast--format-line pos))
         (if (> lines 0)
             (if (= (point) pos)
                 (setq columns -1)
@@ -1338,7 +1334,7 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
 
 ;; Moves the point forward by count matches of regex up to max-pos,
 ;; and returns new max-pos making sure final position does not include another match.
-(defun rust--format-forward (regex count max-pos)
+(defun verifast--format-forward (regex count max-pos)
   (when (< (point) max-pos)
     (let ((beginning (point)))
       (while (> count 0)
@@ -1350,8 +1346,8 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
       (goto-char beginning)))
   max-pos)
 
-;; Gets the position from a location list obtained using rust--format-get-loc.
-(defun rust--format-get-pos (buffer loc)
+;; Gets the position from a location list obtained using verifast--format-get-loc.
+(defun verifast--format-get-pos (buffer loc)
   (with-current-buffer buffer
     (save-excursion
       (goto-char (point-min))
@@ -1359,8 +1355,8 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
             (words (pop loc))
             (lines (pop loc))
             (columns (pop loc)))
-        (setq max-pos (rust--format-forward rust--format-word words max-pos))
-        (setq max-pos (rust--format-forward rust--format-line lines max-pos))
+        (setq max-pos (verifast--format-forward verifast--format-word words max-pos))
+        (setq max-pos (verifast--format-forward verifast--format-line lines max-pos))
         (when (> lines 0) (forward-char))
         (let ((initial-column (current-column))
               (save-point (point)))
@@ -1370,11 +1366,11 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
             (forward-char columns)))
         (min (point) max-pos)))))
 
-(defun rust-format-buffer ()
-  "Format the current buffer using rustfmt."
+(defun verifast-format-buffer ()
+  "Format the current buffer using verifastfmt."
   (interactive)
-  (unless (executable-find rust-rustfmt-bin)
-    (error "Could not locate executable \"%s\"" rust-rustfmt-bin))
+  (unless (executable-find verifast-verifastfmt-bin)
+    (error "Could not locate executable \"%s\"" verifast-verifastfmt-bin))
 
   (let* ((current (current-buffer))
          (base (or (buffer-base-buffer current) current))
@@ -1384,7 +1380,7 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
       (when (or (eq buffer base)
                 (eq (buffer-base-buffer buffer) base))
         (push (list buffer
-                    (rust--format-get-loc buffer nil))
+                    (verifast--format-get-loc buffer nil))
               buffer-loc)))
     (dolist (window (window-list))
       (let ((buffer (window-buffer window)))
@@ -1393,63 +1389,63 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
           (let ((start (window-start window))
                 (point (window-point window)))
             (push (list window
-                        (rust--format-get-loc buffer start)
-                        (rust--format-get-loc buffer point))
+                        (verifast--format-get-loc buffer start)
+                        (verifast--format-get-loc buffer point))
                   window-loc)))))
-    (rust--format-call (current-buffer))
+    (verifast--format-call (current-buffer))
     (dolist (loc buffer-loc)
       (let* ((buffer (pop loc))
-             (pos (rust--format-get-pos buffer (pop loc))))
+             (pos (verifast--format-get-pos buffer (pop loc))))
         (with-current-buffer buffer
           (goto-char pos))))
     (dolist (loc window-loc)
       (let* ((window (pop loc))
              (buffer (window-buffer window))
-             (start (rust--format-get-pos buffer (pop loc)))
-             (pos (rust--format-get-pos buffer (pop loc))))
+             (start (verifast--format-get-pos buffer (pop loc)))
+             (pos (verifast--format-get-pos buffer (pop loc))))
         (set-window-start window start)
         (set-window-point window pos))))
 
   ;; Issue #127: Running this on a buffer acts like a revert, and could cause
   ;; the fontification to get out of sync.  Call the same hook to ensure it is
   ;; restored.
-  (rust--after-revert-hook)
+  (verifast--after-revert-hook)
 
-  (message "Formatted buffer with rustfmt."))
+  (message "Formatted buffer with verifastfmt."))
 
-(defun rust-enable-format-on-save ()
-  "Enable formatting using rustfmt when saving buffer."
+(defun verifast-enable-format-on-save ()
+  "Enable formatting using verifastfmt when saving buffer."
   (interactive)
-  (setq-local rust-format-on-save t))
+  (setq-local verifast-format-on-save t))
 
-(defun rust-disable-format-on-save ()
-  "Disable formatting using rustfmt when saving buffer."
+(defun verifast-disable-format-on-save ()
+  "Disable formatting using verifastfmt when saving buffer."
   (interactive)
-  (setq-local rust-format-on-save nil))
+  (setq-local verifast-format-on-save nil))
 
-(defvar rust-mode-map
+(defvar verifast-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-f") 'rust-format-buffer)
+    (define-key map (kbd "C-c C-f") 'verifast-format-buffer)
     map)
-  "Keymap for Rust major mode.")
+  "Keymap for Verifast major mode.")
 
 ;;;###autoload
-(define-derived-mode rust-mode prog-mode "Rust"
-  "Major mode for Rust code.
+(define-derived-mode verifast-mode prog-mode "VeriFast"
+  "Major mode for Verifast code.
 
-\\{rust-mode-map}"
-  :group 'rust-mode
-  :syntax-table rust-mode-syntax-table
+\\{verifast-mode-map}"
+  :group 'verifast-mode
+  :syntax-table verifast-mode-syntax-table
 
   ;; Indentation
-  (setq-local indent-line-function 'rust-mode-indent-line)
+  (setq-local indent-line-function 'verifast-mode-indent-line)
 
   ;; Fonts
-  (add-to-list 'font-lock-extend-region-functions 'rust-font-lock-extend-region)
-  (setq-local font-lock-defaults '(rust-mode-font-lock-keywords
+  (add-to-list 'font-lock-extend-region-functions 'verifast-font-lock-extend-region)
+  (setq-local font-lock-defaults '(verifast-mode-font-lock-keywords
                                    nil nil nil nil
-                                   (font-lock-syntactic-keywords . rust-mode-font-lock-syntactic-keywords)
-                                   (font-lock-syntactic-face-function . rust-mode-syntactic-face-function)
+                                   (font-lock-syntactic-keywords . verifast-mode-font-lock-syntactic-keywords)
+                                   (font-lock-syntactic-face-function . verifast-mode-syntactic-face-function)
                                    ))
 
   ;; Misc
@@ -1467,34 +1463,34 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
   (setq-local paragraph-start
        (concat "[[:space:]]*\\(?:" comment-start-skip "\\|\\*/?[[:space:]]*\\|\\)$"))
   (setq-local paragraph-separate paragraph-start)
-  (setq-local normal-auto-fill-function 'rust-do-auto-fill)
-  (setq-local fill-paragraph-function 'rust-fill-paragraph)
-  (setq-local fill-forward-paragraph-function 'rust-fill-forward-paragraph)
-  (setq-local adaptive-fill-function 'rust-find-fill-prefix)
+  (setq-local normal-auto-fill-function 'verifast-do-auto-fill)
+  (setq-local fill-paragraph-function 'verifast-fill-paragraph)
+  (setq-local fill-forward-paragraph-function 'verifast-fill-forward-paragraph)
+  (setq-local adaptive-fill-function 'verifast-find-fill-prefix)
   (setq-local adaptive-fill-first-line-regexp "")
   (setq-local comment-multi-line t)
-  (setq-local comment-line-break-function 'rust-comment-indent-new-line)
-  (setq-local imenu-generic-expression rust-imenu-generic-expression)
+  (setq-local comment-line-break-function 'verifast-comment-indent-new-line)
+  (setq-local imenu-generic-expression verifast-imenu-generic-expression)
   (setq-local imenu-syntax-alist '((?! . "w"))) ; For macro_rules!
-  (setq-local beginning-of-defun-function 'rust-beginning-of-defun)
-  (setq-local end-of-defun-function 'rust-end-of-defun)
+  (setq-local beginning-of-defun-function 'verifast-beginning-of-defun)
+  (setq-local end-of-defun-function 'verifast-end-of-defun)
   (setq-local parse-sexp-lookup-properties t)
-  (setq-local electric-pair-inhibit-predicate 'rust-electric-pair-inhibit-predicate-wrap)
-  (add-hook 'after-revert-hook 'rust--after-revert-hook nil t)
-  (add-hook 'before-save-hook 'rust--before-save-hook nil t))
+  (setq-local electric-pair-inhibit-predicate 'verifast-electric-pair-inhibit-predicate-wrap)
+  (add-hook 'after-revert-hook 'verifast--after-revert-hook nil t)
+  (add-hook 'before-save-hook 'verifast--before-save-hook nil t))
 
 ;;;###autoload
-(add-to-list 'auto-mode-alist '("\\.rs\\'" . rust-mode))
+(add-to-list 'auto-mode-alist '("\\.rs\\'" . verifast-mode))
 
-(defun rust-mode-reload ()
+(defun verifast-mode-reload ()
   (interactive)
-  (unload-feature 'rust-mode)
-  (require 'rust-mode)
-  (rust-mode))
+  (unload-feature 'verifast-mode)
+  (require 'verifast-mode)
+  (verifast-mode))
 
 ;; Issue #104: When reverting the buffer, make sure all fontification is redone
 ;; so that we don't end up missing a non-angle-bracket '<' or '>' character.
-(defun rust--after-revert-hook ()
+(defun verifast--after-revert-hook ()
   ;; In Emacs 25 and later, the preferred method to force fontification is
   ;; to use `font-lock-ensure', which doesn't exist in Emacs 24 and earlier.
   ;; If it's not available, fall back to calling `font-lock-fontify-region'
@@ -1504,13 +1500,13 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
         (font-lock-ensure)
       (font-lock-fontify-region (point-min) (point-max)))))
 
-(defun rust--before-save-hook ()
-  (when rust-format-on-save (rust-format-buffer)))
+(defun verifast--before-save-hook ()
+  (when verifast-format-on-save (verifast-format-buffer)))
 
 ;; Issue #6887: Rather than inheriting the 'gnu compilation error
-;; regexp (which is broken on a few edge cases), add our own 'rust
+;; regexp (which is broken on a few edge cases), add our own 'verifast
 ;; compilation error regexp and use it instead.
-(defvar rustc-compilation-regexps
+(defvar verifastc-compilation-regexps
   (let ((file "\\([^\n]+\\)")
         (start-line "\\([0-9]+\\)")
         (start-col  "\\([0-9]+\\)")
@@ -1521,17 +1517,17 @@ This is written mainly to be used as `end-of-defun-function' for Rust."
                       ": " end-line ":" end-col
                       " " msg-type ":")))
       (cons re '(1 (2 . 4) (3 . 5) (6 . 7)))))
-  "Specifications for matching errors in rustc invocations.
+  "Specifications for matching errors in verifastc invocations.
 See `compilation-error-regexp-alist' for help on their format.")
 
-(defvar rustc-new-compilation-regexps
+(defvar verifastc-new-compilation-regexps
   (let ((file "\\([^\n]+\\)")
         (start-line "\\([0-9]+\\)")
         (start-col  "\\([0-9]+\\)"))
     (let ((re (concat "^ *--> " file ":" start-line ":" start-col ; --> 1:2:3
                       )))
       (cons re '(1 2 3))))
-  "Specifications for matching errors in rustc invocations (new style).
+  "Specifications for matching errors in verifastc invocations (new style).
 See `compilation-error-regexp-alist' for help on their format.")
 
 ;; Match test run failures and panics during compilation as
@@ -1541,14 +1537,14 @@ See `compilation-error-regexp-alist' for help on their format.")
   "Specifications for matching panics in cargo test invocations.
 See `compilation-error-regexp-alist' for help on their format.")
 
-(defun rustc-scroll-down-after-next-error ()
+(defun verifastc-scroll-down-after-next-error ()
   "In the new style error messages, the regular expression
    matches on the file name (which appears after `-->`), but the
    start of the error appears a few lines earlier. This hook runs
    after `M-x next-error`; it simply scrolls down a few lines in
    the compilation window until the top of the error is visible."
   (save-selected-window
-    (when (eq major-mode 'rust-mode)
+    (when (eq major-mode 'verifast-mode)
       (select-window (get-buffer-window next-error-last-buffer))
       (when (save-excursion
               (beginning-of-line)
@@ -1564,29 +1560,29 @@ See `compilation-error-regexp-alist' for help on their format.")
 (eval-after-load 'compile
   '(progn
      (add-to-list 'compilation-error-regexp-alist-alist
-                  (cons 'rustc-new rustc-new-compilation-regexps))
-     (add-to-list 'compilation-error-regexp-alist 'rustc-new)
-     (add-hook 'next-error-hook 'rustc-scroll-down-after-next-error)
+                  (cons 'verifastc-new verifastc-new-compilation-regexps))
+     (add-to-list 'compilation-error-regexp-alist 'verifastc-new)
+     (add-hook 'next-error-hook 'verifastc-scroll-down-after-next-error)
      (add-to-list 'compilation-error-regexp-alist-alist
-                  (cons 'rustc rustc-compilation-regexps))
-     (add-to-list 'compilation-error-regexp-alist 'rustc)
+                  (cons 'verifastc verifastc-compilation-regexps))
+     (add-to-list 'compilation-error-regexp-alist 'verifastc)
      (add-to-list 'compilation-error-regexp-alist-alist
                   (cons 'cargo cargo-compilation-regexps))
      (add-to-list 'compilation-error-regexp-alist 'cargo)))
 
-;;; Functions to submit (parts of) buffers to the rust playpen, for
+;;; Functions to submit (parts of) buffers to the verifast playpen, for
 ;;; sharing.
-(defun rust-playpen-region (begin end)
+(defun verifast-playpen-region (begin end)
   "Create a sharable URL for the contents of the current region
-   on the Rust playpen."
+   on the Verifast playpen."
   (interactive "r")
   (let* ((data (buffer-substring begin end))
          (escaped-data (url-hexify-string data))
-         (escaped-playpen-url (url-hexify-string (format rust-playpen-url-format escaped-data))))
+         (escaped-playpen-url (url-hexify-string (format verifast-playpen-url-format escaped-data))))
     (if (> (length escaped-playpen-url) 5000)
         (error "encoded playpen data exceeds 5000 character limit (length %s)"
                (length escaped-playpen-url))
-      (let ((shortener-url (format rust-shortener-url-format escaped-playpen-url))
+      (let ((shortener-url (format verifast-shortener-url-format escaped-playpen-url))
             (url-request-method "POST"))
         (url-retrieve shortener-url
                       (lambda (state)
@@ -1602,13 +1598,13 @@ See `compilation-error-regexp-alist' for help on their format.")
                               (error "failed to shorten playpen url: %s" last-line)
                             (message "%s" last-line)))))))))
 
-(defun rust-playpen-buffer ()
+(defun verifast-playpen-buffer ()
   "Create a sharable URL for the contents of the current buffer
-   on the Rust playpen."
+   on the Verifast playpen."
   (interactive)
-  (rust-playpen-region (point-min) (point-max)))
+  (verifast-playpen-region (point-min) (point-max)))
 
-(defun rust-promote-module-into-dir ()
+(defun verifast-promote-module-into-dir ()
   "Promote the module file visited by the current buffer into its own directory.
 
 For example, if the current buffer is visiting the file `foo.rs',
@@ -1630,6 +1626,6 @@ visit the new file."
           (rename-file filename new-name 1)
           (set-visited-file-name new-name))))))
 
-(provide 'rust-mode)
+(provide 'verifast-mode)
 
-;;; rust-mode.el ends here
+;;; verifast-mode.el ends here
