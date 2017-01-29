@@ -31,8 +31,6 @@
 (defconst verifast-re-ident "[[:word:][:multibyte:]_][[:word:][:multibyte:]_[:digit:]]*")
 (defconst verifast-re-lc-ident "[[:lower:][:multibyte:]_][[:word:][:multibyte:]_[:digit:]]*")
 (defconst verifast-re-uc-ident "[[:upper:]][[:word:][:multibyte:]_[:digit:]]*")
-(defconst verifast-re-vis "pub")
-(defconst verifast-re-extern "extern")
 
 (defconst verifast-re-non-standard-string
   (rx
@@ -168,15 +166,6 @@ function or trait.  When nil, where will be aligned with fn or trait."
   :type 'boolean
   :group 'verifast-mode
   :safe #'booleanp)
-
-(defcustom verifast-playpen-url-format "https://play.verifast-lang.org/?code=%s"
-  "Format string to use when submitting code to the playpen"
-  :type 'string
-  :group 'verifast-mode)
-(defcustom verifast-shortener-url-format "https://is.gd/create.php?format=simple&url=%s"
-  "Format string to use for creating the shortened link of a playpen submission"
-  :type 'string
-  :group 'verifast-mode)
 
 (defcustom verifast-match-angle-brackets t
   "Enable angle bracket matching.  Attempt to match `<' and `>' where
@@ -1454,40 +1443,6 @@ See `compilation-error-regexp-alist' for help on their format.")
      (add-to-list 'compilation-error-regexp-alist-alist
                   (cons 'cargo cargo-compilation-regexps))
      (add-to-list 'compilation-error-regexp-alist 'cargo)))
-
-;;; Functions to submit (parts of) buffers to the verifast playpen, for
-;;; sharing.
-(defun verifast-playpen-region (begin end)
-  "Create a sharable URL for the contents of the current region
-   on the Verifast playpen."
-  (interactive "r")
-  (let* ((data (buffer-substring begin end))
-         (escaped-data (url-hexify-string data))
-         (escaped-playpen-url (url-hexify-string (format verifast-playpen-url-format escaped-data))))
-    (if (> (length escaped-playpen-url) 5000)
-        (error "encoded playpen data exceeds 5000 character limit (length %s)"
-               (length escaped-playpen-url))
-      (let ((shortener-url (format verifast-shortener-url-format escaped-playpen-url))
-            (url-request-method "POST"))
-        (url-retrieve shortener-url
-                      (lambda (state)
-                        ; filter out the headers etc. included at the
-                        ; start of the buffer: the relevant text
-                        ; (shortened url or error message) is exactly
-                        ; the last line.
-                        (goto-char (point-max))
-                        (let ((last-line (thing-at-point 'line t))
-                              (err (plist-get state :error)))
-                          (kill-buffer)
-                          (if err
-                              (error "failed to shorten playpen url: %s" last-line)
-                            (message "%s" last-line)))))))))
-
-(defun verifast-playpen-buffer ()
-  "Create a sharable URL for the contents of the current buffer
-   on the Verifast playpen."
-  (interactive)
-  (verifast-playpen-region (point-min) (point-max)))
 
 (defun verifast-promote-module-into-dir ()
   "Promote the module file visited by the current buffer into its own directory.
