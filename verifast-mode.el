@@ -547,12 +547,6 @@ buffer."
 (defun verifast-re-shy (inner) (concat "\\(?:" inner "\\)"))
 (defun verifast-re-item-def (itype)
   (concat (verifast-re-word itype) "[[:space:]]+" (verifast-re-grab verifast-re-ident)))
-(defun verifast-re-item-def-imenu (itype)
-  (concat "^[[:space:]]*"
-          (verifast-re-shy (concat (verifast-re-word verifast-re-vis) "[[:space:]]+")) "?"
-          (verifast-re-shy (concat (verifast-re-word verifast-re-extern) "[[:space:]]+"
-                               (verifast-re-shy "\"[^\"]+\"[[:space:]]+") "?")) "?"
-          (verifast-re-item-def itype)))
 
 (defconst verifast-re-special-types (regexp-opt verifast-special-types 'symbols))
 
@@ -1191,19 +1185,6 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
   (verifast-with-comment-fill-prefix
    (lambda () (comment-indent-new-line arg))))
 
-;;; Imenu support
-(defvar verifast-imenu-generic-expression
-  (append (mapcar #'(lambda (x)
-                      (list (capitalize x) (verifast-re-item-def-imenu x) 1))
-                  '("enum" "struct" "type" "mod" "fn" "trait" "impl"))
-          `(("Macro" ,(verifast-re-item-def-imenu "macro_rules!") 1)))
-  "Value for `imenu-generic-expression' in Verifast mode.
-
-Create a hierarchical index of the item definitions in a Verifast file.
-
-Imenu will show all the enums, structs, etc. in their own subheading.
-Use idomenu (imenu with `ido-mode') for best mileage.")
-
 ;;; Defun Motions
 
 ;;; Start of a Verifast item
@@ -1379,8 +1360,6 @@ This is written mainly to be used as `end-of-defun-function' for Verifast."
   (setq-local adaptive-fill-first-line-regexp "")
   (setq-local comment-multi-line t)
   (setq-local comment-line-break-function 'verifast-comment-indent-new-line)
-  (setq-local imenu-generic-expression verifast-imenu-generic-expression)
-  (setq-local imenu-syntax-alist '((?! . "w"))) ; For macro_rules!
   (setq-local beginning-of-defun-function 'verifast-beginning-of-defun)
   (setq-local end-of-defun-function 'verifast-end-of-defun)
   (setq-local parse-sexp-lookup-properties t)
