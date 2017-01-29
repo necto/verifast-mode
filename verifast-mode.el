@@ -148,7 +148,7 @@
   :link '(url-link "https://github.com/verifast/verifast")
   :group 'languages)
 
-(defcustom verifast-indent-offset 4
+(defcustom verifast-indent-offset 2
   "Indent Verifast code by this number of spaces."
   :type 'integer
   :group 'verifast-mode
@@ -160,14 +160,14 @@
   :group 'verifast-mode
   :safe #'booleanp)
 
-(defcustom verifast-indent-where-clause t
-  "Indent the line starting with the where keyword following a
-function or trait.  When nil, where will be aligned with fn or trait."
+(defcustom verifast-indent-case-clause t
+  "Indent the line starting with the case keyword following a
+function or trait.  When nil, case will be aligned with fn or trait."
   :type 'boolean
   :group 'verifast-mode
   :safe #'booleanp)
 
-(defcustom verifast-match-angle-brackets t
+(defcustom verifast-match-angle-brackets nil
   "Enable angle bracket matching.  Attempt to match `<' and `>' where
   appropriate."
   :type 'boolean
@@ -201,19 +201,29 @@ function or trait.  When nil, where will be aligned with fn or trait."
           (verifast-in-macro))
       )))
 
-(defun verifast-looking-at-where ()
-  "Return T when looking at the \"where\" keyword."
-  (and (looking-at-p "\\bwhere\\b")
+(defun verifast-looking-at-case ()
+  "Return T when looking at the \"case\" keyword."
+  (and (looking-at-p "\\bcase\\b")
        (not (verifast-in-str-or-cmnt))))
 
-(defun verifast-rewind-to-where (&optional limit)
-  "Rewind the point to the closest occurrence of the \"where\" keyword.
-Return T iff a where-clause was found.  Does not rewind past
+(defun verifast-rewind-to-case (&optional limit)
+  "Rewind the point to the closest occurrence of the \"case\" keyword.
+Return T iff a case-clause was found.  Does not rewind past
 LIMIT when passed, otherwise only stops at the beginning of the
 buffer."
-  (when (re-search-backward "\\bwhere\\b" limit t)
+  (when (re-search-backward "\\bcase\\b" limit t)
     (if (verifast-in-str-or-cmnt)
-        (verifast-rewind-to-where limit)
+        (verifast-rewind-to-case limit)
+      t)))
+
+(defun verifast-rewind-to-requires-ensures (&optional limit)
+  "Rewind the point to the closest occurrence of the \"case\" keyword.
+Return T iff a case-clause was found.  Does not rewind past
+LIMIT when passed, otherwise only stops at the beginning of the
+buffer."
+  (when (re-search-backward "\\brequires\\b\\|\\bensures\\b" limit t)
+    (if (verifast-in-str-or-cmnt)
+        (verifast-rewind-to-requires-ensures limit)
       t)))
 
 (defun verifast-align-to-expr-after-brace ()
@@ -223,8 +233,8 @@ buffer."
     ;; open bracket ends the line
     (when (not (looking-at "[[:blank:]]*\\(?://.*\\)?$"))
       (when (looking-at "[[:space:]]")
-    (forward-word 1)
-    (backward-word 1))
+        (forward-word 1)
+        (backward-word 1))
       (current-column))))
 
 (defun verifast-rewind-to-beginning-of-current-level-expr ()
@@ -236,7 +246,7 @@ buffer."
     (while (> (verifast-paren-level) current-level)
       (backward-up-list)
       (back-to-indentation))
-    ;; When we're in the where clause, skip over it.  First find out the start
+    ;; When we're in the case clause, skip over it.  First find out the start
     ;; of the function and its paren level.
     (let ((function-start nil) (function-level nil))
       (save-excursion
@@ -245,13 +255,13 @@ buffer."
         ;; Avoid using multiple-value-bind
         (setq function-start (point)
               function-level (verifast-paren-level)))
-      ;; On a where clause
-      (when (or (verifast-looking-at-where)
+      ;; On a case clause
+      (when (or (verifast-looking-at-case)
                 ;; or in one of the following lines, e.g.
                 ;; where A: Eq
                 ;;       B: Hash <- on this line
                 (and (save-excursion
-                       (verifast-rewind-to-where function-start))
+                       (verifast-rewind-to-case function-start))
                      (= current-level function-level)))
         (goto-char function-start)))))
 
@@ -385,6 +395,14 @@ buffer."
                        (back-to-indentation)
                        (current-column))))))
 
+              ;; Requires clause indented to 0
+              ((looking-at "requires")
+               baseline)
+
+              ;; Ensures clause - also
+              ((looking-at "ensures")
+               baseline)
+
               ;; A function return type is indented to the corresponding function arguments
               ((looking-at "->")
                (save-excursion
@@ -399,10 +417,10 @@ buffer."
               ((and (nth 4 (syntax-ppss)) (looking-at "*"))
                (+ 1 baseline))
 
-              ;; When the user chose not to indent the start of the where
+              ;; When the user chose not to indent the start of the case
               ;; clause, put it on the baseline.
-              ((and (not verifast-indent-where-clause)
-                    (verifast-looking-at-where))
+              ((and (not verifast-indent-case-clause)
+                    (verifast-looking-at-case))
                baseline)
 
               ;; If we're in any other token-tree / sexp, then:
@@ -418,45 +436,41 @@ buffer."
                     ;; Point is now at the beginning of the containing set of braces
                     (verifast-align-to-expr-after-brace)))
 
-                ;; When where-clauses are spread over multiple lines, clauses
+                ;; Indent the requires and ensures expressions;
+                (when (and (= level 0)
+                           (not (looking-at "{")))
+                  (let ((function-start nil))
+                    (save-excursion
+                      (verifast-beginning-of-defun)
+                      (back-to-indentation)
+                      (setq function-start (point)))
+                    (save-excursion
+                      (verifast-rewind-to-requires-ensures function-start)
+                      (forward-word)
+                      (forward-word);; Need to get to the beginning of the next
+                      (backward-word) ;; word
+                      (current-column))))
+
+                ;; When case-clauses are spread over multiple lines, clauses
                 ;; should be aligned on the type parameters.  In this case we
                 ;; take care of the second and following clauses (the ones
-                ;; that don't start with "where ")
+                ;; that don't start with "case ")
                 (save-excursion
                   ;; Find the start of the function, we'll use this to limit
-                  ;; our search for "where ".
-                  (let ((function-start nil) (function-level nil))
+                  ;; our search for "case ".
+                  (let ((function-start nil))
                     (save-excursion
                       (verifast-beginning-of-defun)
                       (back-to-indentation)
                       ;; Avoid using multiple-value-bind
-                      (setq function-start (point)
-                            function-level (verifast-paren-level)))
-                    ;; When we're not on a line starting with "where ", but
-                    ;; still on a where-clause line, go to "where "
-                    (when (and
-                           (not (verifast-looking-at-where))
-                           ;; We're looking at something like "F: ..."
-                           (looking-at (concat verifast-re-ident ":"))
-                           ;; There is a "where " somewhere after the
-                           ;; start of the function.
-                           (verifast-rewind-to-where function-start)
-                           ;; Make sure we're not inside the function
-                           ;; already (e.g. initializing a struct) by
-                           ;; checking we are the same level.
-                           (= function-level level))
-                      ;; skip over "where"
-                      (forward-char 5)
-                      ;; Unless "where" is at the end of the line
-                      (if (eolp)
-                          ;; in this case the type parameters bounds are just
-                          ;; indented once
-                          (+ baseline verifast-indent-offset)
-                        ;; otherwise, skip over whitespace,
-                        (skip-chars-forward "[:space:]")
-                        ;; get the column of the type parameter and use that
-                        ;; as indentation offset
-                        (current-column)))))
+                      (setq function-start (point)))
+                    ;; When we're not on a line starting with "case ", but
+                    ;; still on a case-clause line, go to "case "
+                    (when (not (verifast-looking-at-case))
+                      ;; There is a "case " somewhere after the
+                      ;; start of the function.
+                      (verifast-rewind-to-case function-start)
+                      (+ (current-column) verifast-indent-offset))))
 
                 (progn
                   (back-to-indentation)
@@ -515,15 +529,8 @@ buffer."
     "while"))
 
 (defconst verifast-special-types
-  '("u8" "i8"
-    "u16" "i16"
-    "u32" "i32"
-    "u64" "i64"
-
-    "f32" "f64"
-    "float" "int" "uint" "isize" "usize"
-    "bool"
-    "str" "char"))
+  '("float" "int" "unsigned" "char" "short" "long"
+    "bool" "void"))
 
 (defconst verifast-re-type-or-constructor
   (rx symbol-start
@@ -727,8 +734,8 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
 
 (defun verifast-rewind-to-decl-name ()
   "If we are before an ident that is part of a declaration that
-  can have a where clause, rewind back to just before the name of
-  the subject of that where clause and return the new point.
+  can have a case clause, rewind back to just before the name of
+  the subject of that case clause and return the new point.
   Otherwise return nil"
   
   (let* ((ident-pos (point))
@@ -831,7 +838,7 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
            ;; An ampersand after an ident has to be an operator rather than a & at the beginning of a ref type
            ((equal postchar ?&) t)
 
-           ;; A : followed by a type then an = introduces an expression (unless it is part of a where clause of a "type" declaration)
+           ;; A : followed by a type then an = introduces an expression (unless it is part of a case clause of a "type" declaration)
            ((and (equal postchar ?=)
                  (looking-back "[^:]:" (- (point) 2))
                  (not (save-excursion (and (verifast-rewind-to-decl-name) (progn (verifast-rewind-irrelevant) (verifast-looking-back-symbols '("type"))))))))
@@ -1178,10 +1185,7 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
 
 ;;; Start of a Verifast item
 (defvar verifast-top-item-beg-re
-  (concat "^\\s-*\\(?:priv\\|pub\\)?\\s-*"
-          (regexp-opt
-           '("enum" "struct" "type" "mod" "use" "fn" "static" "impl"
-             "extern" "trait"))))
+  "^\\s-*\\(?:lemma\\s-\\|predicate\\s-\\|fixpoint\\s-\\)?\\s-*[[:alpha:]][[:alnum:]_<>,]*\\s-[[:alpha:]][[:alnum:]_<>,]*\\s-*\\s([[:space:][:alnum:],<>_)]*$")
 
 (defun verifast-beginning-of-defun (&optional arg)
   "Move backward to the beginning of the current defun.
@@ -1193,7 +1197,7 @@ This is written mainly to be used as `beginning-of-defun-function' for Verifast.
 Don't move to the beginning of the line. `beginning-of-defun',
 which calls this, does that afterwards."
   (interactive "p")
-  (re-search-backward (concat "^\\(" verifast-top-item-beg-re "\\)\\_>")
+  (re-search-backward verifast-top-item-beg-re
                       nil 'move (or arg 1)))
 
 (defun verifast-end-of-defun ()
