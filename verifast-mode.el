@@ -204,11 +204,23 @@ buffer."
       t)))
 
 (defun verifast-rewind-to-requires-ensures (&optional limit)
-  "Rewind the point to the closest occurrence of the \"case\" keyword.
+  "Rewind the point to the closest occurrence of a \"requires\"
+or \"ensures\" keyword.
 Return T iff a case-clause was found.  Does not rewind past
 LIMIT when passed, otherwise only stops at the beginning of the
 buffer."
   (when (re-search-backward "\\brequires\\b\\|\\bensures\\b" limit t)
+    (if (verifast-in-str-or-cmnt)
+        (verifast-rewind-to-requires-ensures limit)
+      t)))
+
+(defun verifast-rewind-to-invariant-decreases (&optional limit)
+  "Rewind the point to the closest occurrence of the \"invariant\"
+ or \"decreases\" keyword.
+Return T iff a case-clause was found.  Does not rewind past
+LIMIT when passed, otherwise only stops at the beginning of the
+buffer."
+  (when (re-search-backward "\\binvariant\\b\\|\\bdecreases\\b" limit t)
     (if (verifast-in-str-or-cmnt)
         (verifast-rewind-to-requires-ensures limit)
       t)))
@@ -324,6 +336,34 @@ buffer."
                       (backward-word) ;; word
                       (current-column))))
 
+                (when (and (> level 0)
+                           (not (looking-at-p "{\\|invariant\\|decreases")))
+                  (let ((function-start nil))
+                  (save-excursion
+                    (verifast-beginning-of-defun)
+                    (back-to-indentation)
+                    (setq funciton-start (point)))
+                  (save-excursion
+                    (verifast-rewind-to-invariant-decreases function-start)
+                    (when (= level (verifast-paren-level))
+                      (forward-word)
+                      (forward-word);; Need to get to the beginning of the next
+                      (backward-word) ;; word
+                      (current-column)))))
+
+                (when (and (> level 0)
+                           (not (nth 4 (syntax-ppss)))
+                           (or (looking-at-p "invariant\\|decreases")))
+                  (let ((function-start nil))
+                    (save-excursion
+                      (verifast-beginning-of-defun)
+                      (back-to-indentation)
+                      (setq function-start (point)))
+                    (save-excursion
+                      (verifast-beginning-of-loop function-start)
+                      (back-to-indentation)
+                      (+ (current-column) verifast-indent-offset))))
+
                 ;; When case-clauses are spread over multiple lines, clauses
                 ;; should be aligned on the type parameters.  In this case we
                 ;; take care of the second and following clauses (the ones
@@ -404,7 +444,7 @@ buffer."
     "if"
     "static" "struct"
     "true"
-    "while"))
+    "while" "invariant" "decreases"))
 
 (defconst verifast-special-types
   '("float" "int" "unsigned" "char" "short" "long"
@@ -1077,6 +1117,19 @@ which calls this, does that afterwards."
   (interactive "p")
   (re-search-backward verifast-top-item-beg-re
                       nil 'move (or arg 1)))
+
+;;;; Start of a VeriFast loop
+(defvar verifast-loop-item-beg-re
+  "^\\s-*\\(for\\|while\\)\\s-*(")
+
+(defun verifast-beginning-of-loop (limit)
+  "Move backward to the beginning of the current for/while loop.
+
+do not search behind the limit argument
+
+This is written mainly for indenting `invariant' and `decreases' clauses"
+  (re-search-backward verifast-loop-item-beg-re
+                      limit 'move 1))
 
 (defun verifast-looking-at-defun ()
   (save-excursion
