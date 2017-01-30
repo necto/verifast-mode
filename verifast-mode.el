@@ -1060,7 +1060,7 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
 
 ;;; Start of a Verifast item
 (defvar verifast-top-item-beg-re
-  "^\\s-*\\(?:lemma\\s-\\|predicate\\s-\\|fixpoint\\s-\\)?\\s-*[[:alpha:]][[:alnum:]_<>,]*\\s-[[:alpha:]][[:alnum:]_<>,]*\\s-*\\s([[:space:][:alnum:],<>_)]*{?$")
+  "^\\s-*\\(?:lemma\\s-\\|predicate\\s-\\|fixpoint\\s-\\)?\\s-*[[:alpha:]][[:alnum:]_<>,]*\\s-[[:alpha:]][[:alnum:]_<>,]*\\s-*\\s([[:space:][:alnum:],<>_()]*\\({\\(.*}\\)?\\)?$")
 
 (defun verifast-beginning-of-defun (&optional arg)
   "Move backward to the beginning of the current defun.
