@@ -154,13 +154,6 @@
   :group 'verifast-mode
   :safe #'integerp)
 
-(defcustom verifast-indent-case-clause t
-  "Indent the line starting with the case keyword following a
-function or trait.  When nil, case will be aligned with fn or trait."
-  :type 'boolean
-  :group 'verifast-mode
-  :safe #'booleanp)
-
 (defcustom verifast-match-angle-brackets nil
   "Enable angle bracket matching.  Attempt to match `<' and `>' where
   appropriate."
@@ -225,7 +218,7 @@ buffer."
     (forward-char)
     ;; We don't want to indent out to the open bracket if the
     ;; open bracket ends the line
-    (when (not (looking-at "[[:blank:]]*\\(?://.*\\)?$"))
+    (when (not (looking-at "[[:blank:]]*\\(?:.*\\)?$"))
       (when (looking-at "[[:space:]]")
         (forward-word 1)
         (backward-word 1))
@@ -300,12 +293,6 @@ buffer."
               ((and (nth 4 (syntax-ppss)) (looking-at "*"))
                (+ 1 baseline))
 
-              ;; When the user chose not to indent the start of the case
-              ;; clause, put it on the baseline.
-              ((and (not verifast-indent-case-clause)
-                    (verifast-looking-at-case))
-               baseline)
-
               ;; If we're in any other token-tree / sexp, then:
               (t
                (or
@@ -341,7 +328,8 @@ buffer."
                 (save-excursion
                   ;; Find the start of the function, we'll use this to limit
                   ;; our search for "case ".
-                  (let ((function-start nil))
+                  (let ((function-start nil)
+                        (cur-level (verifast-paren-level)))
                     (save-excursion
                       (verifast-beginning-of-defun)
                       (back-to-indentation)
@@ -350,13 +338,13 @@ buffer."
                     ;; When we're not on a line starting with "case ", but
                     ;; still on a case-clause line, go to "case "
                     (when (and (not (verifast-looking-at-case))
-                               (verifast-rewind-to-case function-start))
+                               (verifast-rewind-to-case function-start)
+                               (= cur-level (verifast-paren-level)))
                       ;; There is a "case " somewhere after the
                       ;; start of the function.
                       (+ (current-column) verifast-indent-offset))))
 
                 (when (> level 0)
-                  (message "here")
                   baseline)
 
                 (progn
