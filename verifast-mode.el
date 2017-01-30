@@ -218,7 +218,7 @@ buffer."
     (forward-char)
     ;; We don't want to indent out to the open bracket if the
     ;; open bracket ends the line
-    (when (not (looking-at "[[:blank:]]*\\(?:.*\\)?$"))
+    (when (not (looking-at "[[:blank:]]*\\(?://.*\\)?$"))
       (when (looking-at "[[:space:]]")
         (forward-word 1)
         (backward-word 1))
@@ -273,8 +273,11 @@ buffer."
              (cond
               ;; Functions must be at the very left.
               ((and (= level 0)
-                    (verifast-looking-at-defun)) 0)
+                    (not (nth 4 (syntax-ppss)))
+                    (or (verifast-looking-at-defun)
+                        (looking-at-p "[[:blank:]]*\\(?://.*\\)?$"))) 0)
 
+              ;; Preprocessor directives
               ((looking-at "\\s-*#.*$")
                0)
 
