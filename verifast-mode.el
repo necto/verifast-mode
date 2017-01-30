@@ -154,12 +154,6 @@
   :group 'verifast-mode
   :safe #'integerp)
 
-(defcustom verifast-indent-method-chain nil
-  "Indent Verifast method chains, aligned by the '.' operators"
-  :type 'boolean
-  :group 'verifast-mode
-  :safe #'booleanp)
-
 (defcustom verifast-indent-case-clause t
   "Indent the line starting with the case keyword following a
 function or trait.  When nil, case will be aligned with fn or trait."
@@ -240,9 +234,6 @@ buffer."
 (defun verifast-rewind-to-beginning-of-current-level-expr ()
   (let ((current-level (verifast-paren-level)))
     (back-to-indentation)
-    (when (looking-at "->")
-      (verifast-rewind-irrelevant)
-      (back-to-indentation))
     (while (> (verifast-paren-level) current-level)
       (backward-up-list)
       (back-to-indentation))
@@ -265,65 +256,6 @@ buffer."
                      (= current-level function-level)))
         (goto-char function-start)))))
 
-(defun verifast-align-to-method-chain ()
-  (save-excursion
-    ;; for method-chain alignment to apply, we must be looking at
-    ;; another method call or field access or something like
-    ;; that. This avoids rather "eager" jumps in situations like:
-    ;;
-    ;; {
-    ;;     something.foo()
-    ;; <indent>
-    ;;
-    ;; Without this check, we would wind up with the cursor under the
-    ;; `.`. In an older version, I had the inverse of the current
-    ;; check, where we checked for situations that should NOT indent,
-    ;; vs checking for the one situation where we SHOULD. It should be
-    ;; clear that this is more robust, but also I find it mildly less
-    ;; annoying to have to press tab again to align to a method chain
-    ;; than to have an over-eager indent in all other cases which must
-    ;; be undone via tab.
-
-    (when (looking-at (concat "\s*\." verifast-re-ident))
-      (forward-line -1)
-      (end-of-line)
-      ;; Keep going up (looking for a line that could contain a method chain)
-      ;; while we're in a comment or on a blank line. Stop when the paren
-      ;; level changes.
-      (let ((level (verifast-paren-level)))
-        (while (and (or (verifast-in-str-or-cmnt)
-                        ;; Only whitespace (or nothing) from the beginning to
-                        ;; the end of the line.
-                        (looking-back "^\s*" (point-at-bol)))
-                    (= (verifast-paren-level) level))
-          (forward-line -1)
-          (end-of-line)))
-
-      (let
-          ;; skip-dot-identifier is used to position the point at the
-          ;; `.` when looking at something like
-          ;;
-          ;;      foo.bar
-          ;;         ^   ^
-          ;;         |   |
-          ;;         |  position of point
-          ;;       returned offset
-          ;;
-          ((skip-dot-identifier
-            (lambda ()
-              (when (and (verifast-looking-back-ident) (save-excursion (forward-thing 'symbol -1) (= ?. (char-before))))
-                (forward-thing 'symbol -1)
-                (backward-char)
-                (- (current-column) verifast-indent-offset)))))
-        (cond
-         ;; foo.bar(...)
-         ((verifast-looking-back-str ")")
-          (backward-list 1)
-          (funcall skip-dot-identifier))
-
-         ;; foo.bar
-         (t (funcall skip-dot-identifier)))))))
-
 (defun verifast-mode-indent-line ()
   (interactive)
   (let ((indent
@@ -340,8 +272,6 @@ buffer."
                    (if (= 0 level)
                        0
                      (or
-                      (when verifast-indent-method-chain
-                        (verifast-align-to-method-chain))
                       (save-excursion
                         (verifast-rewind-irrelevant)
                         (backward-up-list)
@@ -352,53 +282,6 @@ buffer."
               ((and (= level 0)
                     (verifast-looking-at-defun)) 0)
 
-              ;; Indent inside a non-raw string only if the the previous line
-              ;; ends with a backslash that is inside the same string
-              ((nth 3 (syntax-ppss))
-               (let*
-                   ((string-begin-pos (nth 8 (syntax-ppss)))
-                    (end-of-prev-line-pos (when (> (line-number-at-pos) 1)
-                                            (save-excursion
-                                              (forward-line -1)
-                                              (end-of-line)
-                                              (point)))))
-                 (when
-                     (and
-                      ;; If the string begins with an "r" it's a raw string and
-                      ;; we should not change the indentation
-                      (/= ?r (char-after string-begin-pos))
-
-                      ;; If we're on the first line this will be nil and the
-                      ;; rest does not apply
-                      end-of-prev-line-pos
-
-                      ;; The end of the previous line needs to be inside the
-                      ;; current string...
-                      (> end-of-prev-line-pos string-begin-pos)
-
-                      ;; ...and end with a backslash
-                      (= ?\\ (char-before end-of-prev-line-pos)))
-
-                   ;; Indent to the same level as the previous line, or the
-                   ;; start of the string if the previous line starts the string
-                   (if (= (line-number-at-pos end-of-prev-line-pos) (line-number-at-pos string-begin-pos))
-                       ;; The previous line is the start of the string.
-                       ;; If the backslash is the only character after the
-                       ;; string beginning, indent to the next indent
-                       ;; level.  Otherwise align with the start of the string.
-                       (if (> (- end-of-prev-line-pos string-begin-pos) 2)
-                           (save-excursion
-                             (goto-char (+ 1 string-begin-pos))
-                             (current-column))
-                         baseline)
-
-                     ;; The previous line is not the start of the string, so
-                     ;; match its indentation.
-                     (save-excursion
-                       (goto-char end-of-prev-line-pos)
-                       (back-to-indentation)
-                       (current-column))))))
-
               ;; Requires clause indented to 0
               ((looking-at "requires")
                baseline)
@@ -406,13 +289,6 @@ buffer."
               ;; Ensures clause - also
               ((looking-at "ensures")
                baseline)
-
-              ;; A function return type is indented to the corresponding function arguments
-              ((looking-at "->")
-               (save-excursion
-                 (backward-list)
-                 (or (verifast-align-to-expr-after-brace)
-                     (+ baseline verifast-indent-offset))))
 
               ;; A closing brace is 1 level unindented
               ((looking-at "[]})]") (- baseline verifast-indent-offset))
@@ -470,11 +346,15 @@ buffer."
                       (setq function-start (point)))
                     ;; When we're not on a line starting with "case ", but
                     ;; still on a case-clause line, go to "case "
-                    (when (not (verifast-looking-at-case))
+                    (when (and (not (verifast-looking-at-case))
+                               (verifast-rewind-to-case function-start))
                       ;; There is a "case " somewhere after the
                       ;; start of the function.
-                      (verifast-rewind-to-case function-start)
                       (+ (current-column) verifast-indent-offset))))
+
+                (when (> level 0)
+                  (message "here")
+                  baseline)
 
                 (progn
                   (back-to-indentation)
