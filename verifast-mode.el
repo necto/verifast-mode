@@ -222,7 +222,7 @@ LIMIT when passed, otherwise only stops at the beginning of the
 buffer."
   (when (re-search-backward "\\binvariant\\b\\|\\bdecreases\\b" limit t)
     (if (verifast-in-str-or-cmnt)
-        (verifast-rewind-to-requires-ensures limit)
+        (verifast-rewind-to-invariant-decreases limit)
       t)))
 
 (defun verifast-align-to-expr-after-brace ()
@@ -339,17 +339,17 @@ buffer."
                 (when (and (> level 0)
                            (not (looking-at-p "{\\|invariant\\|decreases")))
                   (let ((function-start nil))
-                  (save-excursion
-                    (verifast-beginning-of-defun)
-                    (back-to-indentation)
-                    (setq funciton-start (point)))
-                  (save-excursion
-                    (verifast-rewind-to-invariant-decreases function-start)
-                    (when (= level (verifast-paren-level))
-                      (forward-word)
-                      (forward-word);; Need to get to the beginning of the next
-                      (backward-word) ;; word
-                      (current-column)))))
+                    (save-excursion
+                      (verifast-beginning-of-defun)
+                      (back-to-indentation)
+                      (setq function-start (point)))
+                    (save-excursion
+                      (when (and (verifast-rewind-to-invariant-decreases function-start)
+                                 (= level (verifast-paren-level)))
+                        (forward-word)
+                        (forward-word);; Need to get to the beginning of the next
+                        (backward-word) ;; word
+                        (current-column)))))
 
                 (when (and (> level 0)
                            (not (nth 4 (syntax-ppss)))
@@ -444,6 +444,7 @@ buffer."
     "if"
     "static" "struct"
     "true"
+    "open" "close"
     "while" "invariant" "decreases"))
 
 (defconst verifast-special-types
