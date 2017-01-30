@@ -261,6 +261,9 @@ buffer."
                      (= current-level function-level)))
         (goto-char function-start)))))
 
+(defun verifast-beginning-of-block ()
+  (re-search-backward "{" nil))
+
 (defun verifast-mode-indent-line ()
   (interactive)
   (let ((indent
@@ -338,13 +341,13 @@ buffer."
 
                 (when (and (> level 0)
                            (not (looking-at-p "{\\|invariant\\|decreases")))
-                  (let ((function-start nil))
+                  (let ((block-start nil))
                     (save-excursion
-                      (verifast-beginning-of-defun)
+                      (verifast-beginning-of-block)
                       (back-to-indentation)
-                      (setq function-start (point)))
+                      (setq block-start (point)))
                     (save-excursion
-                      (when (and (verifast-rewind-to-invariant-decreases function-start)
+                      (when (and (verifast-rewind-to-invariant-decreases block-start)
                                  (= level (verifast-paren-level)))
                         (forward-word)
                         (forward-word);; Need to get to the beginning of the next
