@@ -282,6 +282,9 @@ buffer."
               ((and (= level 0)
                     (verifast-looking-at-defun)) 0)
 
+              ((looking-at "\\s-*#.*$")
+               0)
+
               ;; Requires clause indented to 0
               ((looking-at "requires")
                baseline)
