@@ -183,15 +183,17 @@
   (and (looking-at-p "\\bcase\\b")
        (not (verifast-in-str-or-cmnt))))
 
-(defun verifast-rewind-to-case (&optional limit)
+(defun verifast-rewind-to-case (&optional limit level)
   "Rewind the point to the closest occurrence of the \"case\" keyword.
 Return T iff a case-clause was found.  Does not rewind past
 LIMIT when passed, otherwise only stops at the beginning of the
 buffer."
-  (when (re-search-backward "\\bcase\\b" limit t)
-    (if (verifast-in-str-or-cmnt)
-        (verifast-rewind-to-case limit)
-      t)))
+  (let ((cur-level (if level level (verifast-paren-level))))
+    (when (re-search-backward "\\bcase\\b" limit t)
+      (if (or (verifast-in-str-or-cmnt)
+              (> (verifast-paren-level) cur-level))
+          (verifast-rewind-to-case limit cur-level)
+        t))))
 
 (defun verifast-rewind-to-requires-ensures (&optional limit)
   "Rewind the point to the closest occurrence of a \"requires\"
@@ -256,179 +258,195 @@ buffer."
 (defun verifast-beginning-of-block ()
   (re-search-backward "{" nil))
 
+(defun calculate-indent-for-line ()
+  (save-excursion
+    (back-to-indentation)
+    ;; Point is now at beginning of current line
+    (let* ((level (verifast-paren-level))
+           (baseline
+            ;; Our "baseline" is one level out from the indentation of the expression
+            ;; containing the innermost enclosing opening bracket.  That
+            ;; way if we are within a block that has a different
+            ;; indentation than this mode would give it, we still indent
+            ;; the inside of it correctly relative to the outside.
+            (if (= 0 level)
+                0
+              (or
+               (save-excursion
+                 (verifast-rewind-irrelevant)
+                 (backward-up-list)
+                 (verifast-rewind-to-beginning-of-current-level-expr)
+                 (+ (current-column) verifast-indent-offset))))))
+      (cond
+       ;; Functions must be at the very left.
+       ((and (= level 0)
+             (not (nth 4 (syntax-ppss)))
+             (or (verifast-looking-at-defun)
+                 (looking-at-p "[[:blank:]]*\\(?://.*\\)?$")))
+        (cons 0 'top-level))
+
+       ;; Preprocessor directives
+       ((looking-at "\\s-*#.*$")
+        (cons 0 'preprocessor))
+
+       ;; Requires clause indented to 0
+       ((looking-at "requires")
+        (cons baseline 'requires))
+
+       ;; Ensures clause - also
+       ((looking-at "ensures")
+        (cons baseline 'ensures))
+
+       ;; A closing brace is 1 level unindented
+       ((looking-at "[]})]")
+        (cons (- baseline verifast-indent-offset)
+              'block-close))
+
+       ;; Doc comments in /** style with leading * indent to line up the *s
+       ((and (nth 4 (syntax-ppss)) (looking-at "*"))
+        (cons (+ 1 baseline)
+              'comment-*))
+
+       ;; If we're in any other token-tree / sexp, then:
+       (t
+        (or
+         ;; If we are inside a pair of braces, with something after the
+         ;; open brace on the same line and ending with a comma, treat
+         ;; it as fields and align them.
+         (when (> level 0)
+           (save-excursion
+             (verifast-rewind-irrelevant)
+             (backward-up-list)
+             ;; Point is now at the beginning of the containing set of braces
+             (let ((aligned-to (verifast-align-to-expr-after-brace)))
+               (when aligned-to
+                 (cons aligned-to
+                       'open-brace-same-line)))))
+
+         ;; Indent the requires and ensures expressions;
+         (when (and (= level 0)
+                    (not (looking-at "{")))
+           (let ((function-start nil))
+             (save-excursion
+               (verifast-beginning-of-defun)
+               (back-to-indentation)
+               (setq function-start (point)))
+             (save-excursion
+               (verifast-rewind-to-requires-ensures function-start)
+               (forward-word)
+               (forward-word);; Need to get to the beginning of the next
+               (backward-word) ;; word
+               (cons (current-column)
+                     'requires-ensures))))
+
+         (when (and (> level 0)
+                    (not (looking-at-p "{\\|invariant\\|decreases\\|assert\\|open\\|close")))
+           (let ((block-start nil)
+                 (lookback-limit nil))
+             (save-excursion
+               (verifast-beginning-of-block)
+               (back-to-indentation)
+               (setq block-start (point)))
+             (save-excursion
+               (if (search-backward ";" block-start t)
+                   (setq lookback-limit (point))
+                 (setq lookback-limit block-start)))
+             (save-excursion
+               (when (and (verifast-rewind-to-special-statement lookback-limit)
+                          (= level (verifast-paren-level)))
+                 (forward-word)
+                 (forward-word);; Need to get to the beginning of the next
+                 (backward-word) ;; word
+                 (cons (current-column)
+                       'after-special-statement)))))
+
+         (when (and (> level 0)
+                    (not (nth 4 (syntax-ppss)))
+                    (or (looking-at-p "invariant\\|decreases")))
+           (let ((function-start nil))
+             (save-excursion
+               (verifast-beginning-of-defun)
+               (back-to-indentation)
+               (setq function-start (point)))
+             (save-excursion
+               (verifast-beginning-of-loop function-start)
+               (back-to-indentation)
+               (cons (+ (current-column) verifast-indent-offset)
+                     'invariant-decreases))))
+
+         ;; When case-clauses are spread over multiple lines, clauses
+         ;; should be aligned on the type parameters.  In this case we
+         ;; take care of the second and following clauses (the ones
+         ;; that don't start with "case ")
+         (save-excursion
+           ;; Find the start of the function, we'll use this to limit
+           ;; our search for "case ".
+           (let ((function-start nil)
+                 (cur-level (verifast-paren-level)))
+             (save-excursion
+               (verifast-beginning-of-defun)
+               (back-to-indentation)
+               ;; Avoid using multiple-value-bind
+               (setq function-start (point)))
+             ;; When we're not on a line starting with "case ", but
+             ;; still on a case-clause line, go to "case "
+             (when (and (not (verifast-looking-at-case))
+                        (verifast-rewind-to-case function-start)
+                        (= cur-level (verifast-paren-level)))
+               ;; There is a "case " somewhere after the
+               ;; start of the function.
+               (cons (+ (current-column) verifast-indent-offset)
+                     'case-body))))
+
+         (when (> level 0)
+           (cons baseline
+                 'just-body))
+
+         (progn
+           (back-to-indentation)
+           ;; Point is now at the beginning of the current line
+           (if (or
+                ;; If this line begins with "else" or "{", stay on the
+                ;; baseline as well (we are continuing an expression,
+                ;; but the "else" or "{" should align with the beginning
+                ;; of the expression it's in.)
+                ;; Or, if this line starts a comment, stay on the
+                ;; baseline as well.
+                (looking-at "\\<else\\>\\|{\\|/[/*]")
+
+                (save-excursion
+                  (verifast-rewind-irrelevant)
+                  ;; Point is now at the end of the previous line
+                  (or
+                   ;; If we are at the start of the buffer, no
+                   ;; indentation is needed, so stay at baseline...
+                   (= (point) 1)
+                   ;; ..or if the previous line ends with any of these:
+                   ;;     { ? : ( , ; [ }
+                   ;; then we are at the beginning of an expression, so stay on the baseline...
+                   (looking-back "[(,:;?[{}]\\|[^|]|" (- (point) 2))
+                   ;; or if the previous line is the end of an attribute, stay at the baseline...
+                   (progn (verifast-rewind-to-beginning-of-current-level-expr) (looking-at "#")))))
+               (cons baseline
+                     'if-{-else)
+
+             ;; Otherwise, we are continuing the same expression from the previous line,
+             ;; so add one additional indent level
+             (cons (+ baseline verifast-indent-offset)
+                   'inside-parens)))))))))
+
 (defun verifast-mode-indent-line ()
   (interactive)
-  (let ((indent
-         (save-excursion
-           (back-to-indentation)
-           ;; Point is now at beginning of current line
-           (let* ((level (verifast-paren-level))
-                  (baseline
-                   ;; Our "baseline" is one level out from the indentation of the expression
-                   ;; containing the innermost enclosing opening bracket.  That
-                   ;; way if we are within a block that has a different
-                   ;; indentation than this mode would give it, we still indent
-                   ;; the inside of it correctly relative to the outside.
-                   (if (= 0 level)
-                       0
-                     (or
-                      (save-excursion
-                        (verifast-rewind-irrelevant)
-                        (backward-up-list)
-                        (verifast-rewind-to-beginning-of-current-level-expr)
-                        (+ (current-column) verifast-indent-offset))))))
-             (cond
-              ;; Functions must be at the very left.
-              ((and (= level 0)
-                    (not (nth 4 (syntax-ppss)))
-                    (or (verifast-looking-at-defun)
-                        (looking-at-p "[[:blank:]]*\\(?://.*\\)?$"))) 0)
-
-              ;; Preprocessor directives
-              ((looking-at "\\s-*#.*$")
-               0)
-
-              ;; Requires clause indented to 0
-              ((looking-at "requires")
-               baseline)
-
-              ;; Ensures clause - also
-              ((looking-at "ensures")
-               baseline)
-
-              ;; A closing brace is 1 level unindented
-              ((looking-at "[]})]") (- baseline verifast-indent-offset))
-
-              ;; Doc comments in /** style with leading * indent to line up the *s
-              ((and (nth 4 (syntax-ppss)) (looking-at "*"))
-               (+ 1 baseline))
-
-              ;; If we're in any other token-tree / sexp, then:
-              (t
-               (or
-                ;; If we are inside a pair of braces, with something after the
-                ;; open brace on the same line and ending with a comma, treat
-                ;; it as fields and align them.
-                (when (> level 0)
-                  (save-excursion
-                    (verifast-rewind-irrelevant)
-                    (backward-up-list)
-                    ;; Point is now at the beginning of the containing set of braces
-                    (verifast-align-to-expr-after-brace)))
-
-                ;; Indent the requires and ensures expressions;
-                (when (and (= level 0)
-                           (not (looking-at "{")))
-                  (let ((function-start nil))
-                    (save-excursion
-                      (verifast-beginning-of-defun)
-                      (back-to-indentation)
-                      (setq function-start (point)))
-                    (save-excursion
-                      (verifast-rewind-to-requires-ensures function-start)
-                      (forward-word)
-                      (forward-word);; Need to get to the beginning of the next
-                      (backward-word) ;; word
-                      (current-column))))
-
-                (when (and (> level 0)
-                           (not (looking-at-p "{\\|invariant\\|decreases\\|assert\\|open\\|close")))
-                  (let ((block-start nil)
-                        (lookback-limit nil))
-                    (save-excursion
-                      (verifast-beginning-of-block)
-                      (back-to-indentation)
-                      (setq block-start (point)))
-                    (save-excursion
-                      (if (search-backward ";" block-start t)
-                          (setq lookback-limit (point))
-                        (setq lookback-limit block-start)))
-                    (save-excursion
-                      (when (and (verifast-rewind-to-special-statement lookback-limit)
-                                 (= level (verifast-paren-level)))
-                        (forward-word)
-                        (forward-word);; Need to get to the beginning of the next
-                        (backward-word) ;; word
-                        (current-column)))))
-
-                (when (and (> level 0)
-                           (not (nth 4 (syntax-ppss)))
-                           (or (looking-at-p "invariant\\|decreases")))
-                  (let ((function-start nil))
-                    (save-excursion
-                      (verifast-beginning-of-defun)
-                      (back-to-indentation)
-                      (setq function-start (point)))
-                    (save-excursion
-                      (verifast-beginning-of-loop function-start)
-                      (back-to-indentation)
-                      (+ (current-column) verifast-indent-offset))))
-
-                ;; When case-clauses are spread over multiple lines, clauses
-                ;; should be aligned on the type parameters.  In this case we
-                ;; take care of the second and following clauses (the ones
-                ;; that don't start with "case ")
-                (save-excursion
-                  ;; Find the start of the function, we'll use this to limit
-                  ;; our search for "case ".
-                  (let ((function-start nil)
-                        (cur-level (verifast-paren-level)))
-                    (save-excursion
-                      (verifast-beginning-of-defun)
-                      (back-to-indentation)
-                      ;; Avoid using multiple-value-bind
-                      (setq function-start (point)))
-                    ;; When we're not on a line starting with "case ", but
-                    ;; still on a case-clause line, go to "case "
-                    (when (and (not (verifast-looking-at-case))
-                               (verifast-rewind-to-case function-start)
-                               (= cur-level (verifast-paren-level)))
-                      ;; There is a "case " somewhere after the
-                      ;; start of the function.
-                      (+ (current-column) verifast-indent-offset))))
-
-                (when (> level 0)
-                  baseline)
-
-                (progn
-                  (back-to-indentation)
-                  ;; Point is now at the beginning of the current line
-                  (if (or
-                       ;; If this line begins with "else" or "{", stay on the
-                       ;; baseline as well (we are continuing an expression,
-                       ;; but the "else" or "{" should align with the beginning
-                       ;; of the expression it's in.)
-                       ;; Or, if this line starts a comment, stay on the
-                       ;; baseline as well.
-                       (looking-at "\\<else\\>\\|{\\|/[/*]")
-
-                       (save-excursion
-                         (verifast-rewind-irrelevant)
-                         ;; Point is now at the end of the previous line
-                         (or
-                          ;; If we are at the start of the buffer, no
-                          ;; indentation is needed, so stay at baseline...
-                          (= (point) 1)
-                          ;; ..or if the previous line ends with any of these:
-                          ;;     { ? : ( , ; [ }
-                          ;; then we are at the beginning of an expression, so stay on the baseline...
-                          (looking-back "[(,:;?[{}]\\|[^|]|" (- (point) 2))
-                          ;; or if the previous line is the end of an attribute, stay at the baseline...
-                          (progn (verifast-rewind-to-beginning-of-current-level-expr) (looking-at "#")))))
-                      baseline
-
-                    ;; Otherwise, we are continuing the same expression from the previous line,
-                    ;; so add one additional indent level
-                    (+ baseline verifast-indent-offset))))))))))
-
-    (when indent
-      ;; If we're at the beginning of the line (before or at the current
-      ;; indentation), jump with the indentation change.  Otherwise, save the
-      ;; excursion so that adding the indentations will leave us at the
-      ;; equivalent position within the line to where we were before.
-      (if (<= (current-column) (current-indentation))
-          (indent-line-to indent)
-        (save-excursion (indent-line-to indent))))))
+  (let ((indent-case (calculate-indent-for-line)))
+    (let ((indent (car indent-case)))
+      (when indent
+        ;; If we're at the beginning of the line (before or at the current
+        ;; indentation), jump with the indentation change.  Otherwise, save the
+        ;; excursion so that adding the indentations will leave us at the
+        ;; equivalent position within the line to where we were before.
+        (if (<= (current-column) (current-indentation))
+            (indent-line-to indent)
+          (save-excursion (indent-line-to indent)))))))
 
 
 ;; Font-locking definitions and helpers
