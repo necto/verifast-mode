@@ -1,0 +1,10 @@
+# -*- mode: snippet -*-
+# name: switch list
+# expand-env: ((yas-indent-line (quote fixed)))
+# key: swl
+# --
+  switch($1) {
+    case nil:
+    case cons(h,t):
+      $0
+  }

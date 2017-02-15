@@ -216,7 +216,7 @@ buffer."
          "\\binvariant\\b\\|\\bdecreases\\b\\|\\bassert\\b\\|\\bopen\\b\\|\\bclose\\b"
          limit t)
     (if (verifast-in-str-or-cmnt)
-        (verifast-rewind-to-invariant-decreases limit)
+        (verifast-rewind-to-special-statement limit)
       t)))
 
 (defun verifast-align-to-expr-after-brace ()
@@ -1263,6 +1263,23 @@ This is written mainly to be used as `end-of-defun-function' for Verifast."
     map)
   "Keymap for Verifast major mode.")
 
+
+(defvar verifast-snippets-dir
+  (let ((current-file-name (or load-file-name (buffer-file-name))))
+    (expand-file-name "snippets" (file-name-directory current-file-name)))
+  "The directory containing verifast snippets.")
+
+(defun verifast-install-snippets ()
+  "Add `verifast-snippets-dir' to `yas-snippet-dirs' and load\
+ snippets from it."
+  (let ((yasnippet-available (require 'yasnippet nil t)))
+    (if yasnippet-available
+        (progn
+          (add-to-list 'yas-snippet-dirs verifast-snippets-dir t)
+          (yas-load-directory verifast-snippets-dir)))))
+
+(verifast-install-snippets)
+
 ;;;###autoload
 (define-derived-mode verifast-mode prog-mode "VeriFast"
   "Major mode for Verifast code.
@@ -1308,8 +1325,7 @@ This is written mainly to be used as `end-of-defun-function' for Verifast."
   (setq-local end-of-defun-function 'verifast-end-of-defun)
   (setq-local parse-sexp-lookup-properties t)
   (setq-local electric-pair-inhibit-predicate 'verifast-electric-pair-inhibit-predicate-wrap)
-  (add-hook 'after-revert-hook 'verifast--after-revert-hook nil t)
-  (add-hook 'before-save-hook 'verifast--before-save-hook nil t))
+  (add-hook 'after-revert-hook 'verifast--after-revert-hook nil t))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.gh\\'" . verifast-mode))

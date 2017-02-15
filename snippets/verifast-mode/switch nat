@@ -1,0 +1,10 @@
+# -*- mode: snippet -*-
+# name: switch nat
+# expand-env: ((yas-indent-line (quote fixed)))
+# key: swn
+# --
+  switch($1) {
+    case zero:
+    case succ(n):
+      $0
+  }

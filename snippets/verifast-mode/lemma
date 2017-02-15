@@ -1,0 +1,11 @@
+# key: lem
+# name: lemma
+# expand-env: ((yas-indent-line (quote fixed)))
+# --
+
+  lemma void $4($3)
+  requires ${1:true};
+  ensures $2;
+  {
+    assume(false);//TODO $0
+  }

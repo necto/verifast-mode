@@ -1,0 +1,9 @@
+# -*- mode: snippet -*-
+# name: switch pair 
+# expand-env: ((yas-indent-line (quote fixed)))
+# key: swp
+# --
+  switch($1) {
+    case pair(first,second):
+      $0
+  }
