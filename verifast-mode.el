@@ -178,16 +178,6 @@
         (setq continue (/= starting (point)))))))
 
 
-(defun verifast-in-macro ()
-  (save-excursion
-    (when (> (verifast-paren-level) 0)
-      (backward-up-list)
-      (verifast-rewind-irrelevant)
-      (or (verifast-looking-back-macro)
-          (and (verifast-looking-back-ident) (save-excursion (backward-sexp) (verifast-rewind-irrelevant) (verifast-looking-back-str "macro_rules!")))
-          (verifast-in-macro))
-      )))
-
 (defun verifast-looking-at-case ()
   "Return T when looking at the \"case\" keyword."
   (and (looking-at-p "\\bcase\\b")
@@ -206,7 +196,7 @@ buffer."
 (defun verifast-rewind-to-requires-ensures (&optional limit)
   "Rewind the point to the closest occurrence of a \"requires\"
 or \"ensures\" keyword.
-Return T iff a case-clause was found.  Does not rewind past
+Return T iff a clause was found.  Does not rewind past
 LIMIT when passed, otherwise only stops at the beginning of the
 buffer."
   (when (re-search-backward "\\brequires\\b\\|\\bensures\\b" limit t)
@@ -214,13 +204,15 @@ buffer."
         (verifast-rewind-to-requires-ensures limit)
       t)))
 
-(defun verifast-rewind-to-invariant-decreases (&optional limit)
+(defun verifast-rewind-to-special-statement (&optional limit)
   "Rewind the point to the closest occurrence of the \"invariant\"
- or \"decreases\" keyword.
-Return T iff a case-clause was found.  Does not rewind past
+ or \"decreases\", or \"asssert\", \"open\" or \"close\" keyword.
+Return T iff a clause was found.  Does not rewind past
 LIMIT when passed, otherwise only stops at the beginning of the
 buffer."
-  (when (re-search-backward "\\binvariant\\b\\|\\bdecreases\\b" limit t)
+  (when (re-search-backward
+         "\\binvariant\\b\\|\\bdecreases\\b\\|\\bassert\\b\\|\\bopen\\b\\|\\bclose\\b"
+         limit t)
     (if (verifast-in-str-or-cmnt)
         (verifast-rewind-to-invariant-decreases limit)
       t)))
@@ -340,14 +332,19 @@ buffer."
                       (current-column))))
 
                 (when (and (> level 0)
-                           (not (looking-at-p "{\\|invariant\\|decreases")))
-                  (let ((block-start nil))
+                           (not (looking-at-p "{\\|invariant\\|decreases\\|assert\\|open\\|close")))
+                  (let ((block-start nil)
+                        (lookback-limit nil))
                     (save-excursion
                       (verifast-beginning-of-block)
                       (back-to-indentation)
                       (setq block-start (point)))
                     (save-excursion
-                      (when (and (verifast-rewind-to-invariant-decreases block-start)
+                      (if (search-backward ";" block-start t)
+                          (setq lookback-limit (point))
+                        (setq lookback-limit block-start)))
+                    (save-excursion
+                      (when (and (verifast-rewind-to-special-statement lookback-limit)
                                  (= level (verifast-paren-level)))
                         (forward-word)
                         (forward-word);; Need to get to the beginning of the next
@@ -437,6 +434,7 @@ buffer."
 ;; Font-locking definitions and helpers
 (defconst verifast-mode-keywords
   '("lemma" "fixpoint" "predicate"
+    "inductive"
     "requires" "ensures" "assert"
     "switch" "case" "break"
     "return" "typedef"
@@ -944,12 +942,6 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
       ;; We don't take < or > in strings or comments to be angle brackets
       ((verifast-in-str-or-cmnt) t)
 
-      ;; Inside a macro we don't really know the syntax.  Any < or > may be an
-      ;; angle bracket or it may not.  But we know that the other braces have
-      ;; to balance regardless of the < and >, so if we don't treat any < or >
-      ;; as angle brackets it won't mess up any paren balancing.
-      ((verifast-in-macro) t)
-      
       ((looking-at "<")
        (verifast-is-lt-char-operator))
 
@@ -1107,7 +1099,7 @@ the desired identifiers), but does not match type annotations \"foo::<\"."
 
 ;;; Start of a Verifast item
 (defvar verifast-top-item-beg-re
-  "^\\s-*\\(?:lemma\\s-\\|predicate\\s-\\|fixpoint\\s-\\)?\\s-*[[:alpha:]][[:alnum:]_<>,]*\\s-[[:alpha:]][[:alnum:]_<>,]*\\s-*\\s([[:space:][:alnum:],<>_()]*\\({\\(.*}\\)?\\)?$")
+  "\\(^\\s-*\\(?:lemma\\s-\\|predicate\\s-\\|fixpoint\\s-\\)?\\s-*[[:alpha:]][[:alnum:]_<>, ]*\\s-[[:alpha:]][[:alnum:]_<>,]*\\s-*\\s([[:space:][:alnum:],<>_()]*\\({\\(.*}\\)?\\)?$\\)\\|\\(^\\s-*inductive\\s-*[[:alpha:]][[:alnum:]_<>]*\\s-*=\\s-*[[:space:][:alnum:],<>_()]*;?$\\)")
 
 (defun verifast-beginning-of-defun (&optional arg)
   "Move backward to the beginning of the current defun.
