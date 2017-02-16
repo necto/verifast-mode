@@ -162,6 +162,7 @@
   :group 'verifast-mode)
 
 (defun verifast-paren-level () (nth 0 (syntax-ppss)))
+(defun verifast-paren-innmost-beg () (nth 1 (syntax-ppss)))
 (defun verifast-in-str-or-cmnt () (nth 8 (syntax-ppss)))
 (defun verifast-rewind-past-str-cmnt () (goto-char (nth 8 (syntax-ppss))))
 
@@ -382,7 +383,8 @@ buffer."
            ;; Find the start of the function, we'll use this to limit
            ;; our search for "case ".
            (let ((function-start nil)
-                 (cur-level (verifast-paren-level)))
+                 (cur-level (verifast-paren-level))
+                 (cur-innmost-paren-start (verifast-paren-innmost-beg)))
              (save-excursion
                (verifast-beginning-of-defun)
                (back-to-indentation)
@@ -392,7 +394,9 @@ buffer."
              ;; still on a case-clause line, go to "case "
              (when (and (not (verifast-looking-at-case))
                         (verifast-rewind-to-case function-start)
-                        (= cur-level (verifast-paren-level)))
+                        (= cur-level (verifast-paren-level))
+                        (= cur-innmost-paren-start
+                           (verifast-paren-innmost-beg)))
                ;; There is a "case " somewhere after the
                ;; start of the function.
                (cons (+ (current-column) verifast-indent-offset)
